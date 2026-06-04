@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Legend Bar"/>
+  <meta name="theme-color" content="#1c2437"/>
+  <title>Legend Bartending</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --surface2: #f6f7f9;
+      --border: #e0e3e8;
+      --ink: #1d2b3a;
+      --ink2: #4a5568;
+      --ink3: #8492a6;
+      --amber: #c8922a;
+      --blue: #0070f2;
+      --blue2: #005dd4;
+      --teal: #0d9488;
+      --red: #dc2626;
+      --green: #16a34a;
+      --nav-bg: #1c2437;
+      --nav-h: 60px;
+      --top-h: 52px;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 2px 16px rgba(0,0,0,.12);
+      --shadow-sm: 0 1px 4px rgba(0,0,0,.07);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--ink); font-size: 16px; overflow: hidden; }
+
+    /* ===== LOGIN ===== */
+    #loginOverlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--nav-bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 32px 24px; overflow-y: auto;
+    }
+    #loginOverlay.hidden { display: none; }
+    .login-logo { width: 72px; height: 72px; border-radius: 18px; background: var(--amber); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 900; color: white; margin-bottom: 24px; flex-shrink: 0; }
+    .login-title { font-size: 24px; font-weight: 700; color: white; margin-bottom: 6px; }
+    .login-sub { font-size: 14px; color: rgba(255,255,255,.5); margin-bottom: 32px; }
+    .login-box { width: 100%; max-width: 340px; }
+    .login-tabs { display: flex; background: rgba(255,255,255,.08); border-radius: 10px; padding: 4px; margin-bottom: 24px; }
+    .login-tab { flex: 1; padding: 10px; border: none; border-radius: 8px; background: transparent; color: rgba(255,255,255,.5); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
+    .login-tab.active { background: var(--amber); color: white; }
+    .login-field input { width: 100%; padding: 15px 16px; border-radius: var(--radius); border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.08); color: white; font-size: 16px; outline: none; margin-bottom: 12px; font-family: inherit; }
+    .login-field input::placeholder { color: rgba(255,255,255,.35); }
+    .login-btn { width: 100%; padding: 15px; border-radius: var(--radius); border: none; background: var(--amber); color: white; font-size: 17px; font-weight: 700; font-family: inherit; cursor: pointer; margin-top: 4px; }
+    .login-error { color: #ff6b6b; font-size: 13px; text-align: center; margin-top: 10px; min-height: 18px; }
+    .account-btn { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.15); border: none; color: white; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+    /* ===== APP SHELL ===== */
+    #app { display: flex; flex-direction: column; height: 100%; }
+    #app.hidden { display: none; }
+
+    /* ===== TOPBAR ===== */
+    .topbar { height: var(--top-h); background: var(--nav-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; padding-top: env(safe-area-inset-top); }
+    .topbar-left { display: flex; align-items: center; gap: 10px; }
+    .topbar-logo { width: 34px; height: 34px; border-radius: 8px; background: var(--amber); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 900; color: white; }
+    .topbar-title { font-size: 16px; font-weight: 700; color: white; }
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
+    .sync-status { font-size: 11px; color: rgba(255,255,255,.5); }
+    .sync-status.synced { color: #34d399; }
+    .sync-status.error { color: #f87171; }
+    .topbar-save-btn { background: var(--amber); color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
+
+    /* ===== METRICS BAR (no menu cost) ===== */
+    .metrics-bar { background: rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-around; padding: 8px 0; flex-shrink: 0; }
+    .metric { text-align: center; }
+    .metric-val { font-size: 17px; font-weight: 700; color: white; font-variant-numeric: tabular-nums; }
+    .metric-val.amber { color: var(--amber); }
+    .metric-lbl { font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.4); }
+
+    /* ===== CONTENT AREA ===== */
+    .content { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; background: var(--bg); }
+
+    /* ===== BOTTOM NAV ===== */
+    .bottom-nav { height: var(--nav-h); background: var(--nav-bg); display: flex; align-items: stretch; border-top: 1px solid rgba(255,255,255,.08); flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom); }
+    .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; border: none; background: transparent; color: rgba(255,255,255,.45); font-family: inherit; transition: color .15s; }
+    .nav-btn.active { color: var(--amber); }
+    .nav-icon { font-size: 20px; line-height: 1; }
+    .nav-label { font-size: 9px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+
+    /* ===== PAGE HEADER ===== */
+    .page-header { padding: 16px 16px 8px; display: flex; align-items: center; justify-content: space-between; }
+    .page-title { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
+    .page-action { background: var(--blue); color: white; border: none; border-radius: 10px; padding: 9px 16px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; }
+
+    /* ===== SEARCH ===== */
+    .search-wrap { padding: 0 16px 12px; }
+    .search-input { width: 100%; padding: 11px 14px 11px 38px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font-size: 15px; font-family: inherit; color: var(--ink); outline: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238492a6' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: 12px center; }
+
+    /* ===== PILLS ===== */
+    .pill-row { display: flex; gap: 6px; padding: 0 16px 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .pill-row::-webkit-scrollbar { display: none; }
+    .pill { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); font-family: inherit; cursor: pointer; background: var(--surface); color: var(--ink3); white-space: nowrap; }
+    .pill.active { background: var(--blue); color: white; border-color: var(--blue); }
+
+    /* ===== CARDS ===== */
+    .card-list { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-sm); cursor: pointer; transition: background .1s; }
+    .card:active { background: var(--surface2); }
+    .card-body { flex: 1; min-width: 0; }
+    .card-name { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+    .card-sub { font-size: 12px; color: var(--ink3); margin-top: 2px; text-transform: capitalize; }
+    .card-right { display: flex; align-items: center; gap: 6px; }
+    .badge { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; background: var(--surface2); color: var(--ink2); font-variant-numeric: tabular-nums; }
+    .badge.amber { background: #fef3c7; color: var(--amber); }
+    .badge.green { background: #dcfce7; color: var(--green); }
+    .chevron-right { color: var(--ink3); font-size: 18px; }
+    .use-badge { min-width: 26px; height: 26px; border-radius: 50%; background: var(--blue); color: white; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+    /* ===== SECTION HEADER ===== */
+    .section-header { padding: 10px 16px 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink3); }
+
+    /* ===== SHEET ===== */
+    .sheet-overlay { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; }
+    .sheet-overlay.hidden { display: none; }
+    .sheet { width: 100%; max-height: 92vh; background: var(--surface); border-radius: 20px 20px 0 0; overflow: hidden; display: flex; flex-direction: column; animation: slideUp .25s ease; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 10px auto 0; flex-shrink: 0; }
+    .sheet-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .sheet-title { font-size: 17px; font-weight: 700; color: var(--ink); }
+    .sheet-close { width: 30px; height: 30px; border-radius: 50%; background: var(--surface2); border: none; font-size: 18px; color: var(--ink2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+    .sheet-body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+    .sheet-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+
+    /* ===== FIELDS ===== */
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
+    .field input, .field select, .field textarea { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2); font-size: 16px; font-family: inherit; color: var(--ink); outline: none; transition: border-color .15s; -webkit-appearance: none; }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--blue); background: var(--surface); }
+    .field textarea { min-height: 80px; resize: vertical; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* ===== BUTTONS ===== */
+    .btn { border: none; border-radius: 10px; padding: 13px 20px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; }
+    .btn-primary { background: var(--blue); color: white; flex: 1; }
+    .btn-secondary { background: var(--surface2); color: var(--ink2); border: 1px solid var(--border); }
+    .btn-danger { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; }
+    .btn-amber { background: var(--amber); color: white; }
+    .btn-full { width: 100%; }
+    .btn-sm { padding: 8px 14px; font-size: 13px; border-radius: 8px; }
+    .btn-icon { width: 36px; height: 36px; border-radius: 8px; border: none; background: var(--surface2); color: var(--ink2); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+    .btn-icon.red { background: #fef2f2; color: var(--red); }
+
+    /* ===== RECIPE ===== */
+    .recipe-line { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+
+    /* ===== COST BOX ===== */
+    .cost-box { margin: 0 16px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; box-shadow: var(--shadow-sm); }
+    .cost-item { text-align: center; }
+    .cost-val { font-size: 18px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .cost-val.amber { color: var(--amber); }
+    .cost-val.green { color: var(--green); }
+    .cost-lbl { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink3); margin-top: 2px; }
+
+    /* ===== SHOPPING ===== */
+    .shop-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 6px; }
+    .shop-info { flex: 1; min-width: 0; }
+    .shop-name { font-size: 15px; font-weight: 600; text-transform: capitalize; }
+    .shop-sub { font-size: 12px; color: var(--ink3); }
+    .shop-cost { font-size: 14px; font-weight: 700; color: var(--amber); font-variant-numeric: tabular-nums; }
+
+    /* ===== EMPTY ===== */
+    .empty { text-align: center; padding: 48px 24px; color: var(--ink3); }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-title { font-size: 17px; font-weight: 700; color: var(--ink2); margin-bottom: 6px; }
+    .empty-sub { font-size: 14px; }
+
+    /* ===== INNER TABS ===== */
+    .inner-tabs { display: flex; gap: 4px; padding: 0 0 14px; }
+    .inner-tab { flex: 1; padding: 9px; border-radius: 8px; border: none; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: var(--surface2); color: var(--ink3); }
+    .inner-tab.active { background: var(--blue); color: white; }
+
+    /* ===== AUTOCOMPLETE ===== */
+    .autocomplete-list { position: absolute; left: 0; right: 0; top: 100%; z-index: 100; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; max-height: 200px; overflow-y: auto; box-shadow: var(--shadow); margin-top: 4px; }
+    .autocomplete-list.hidden { display: none; }
+    .autocomplete-item { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 15px; text-transform: capitalize; }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:active { background: var(--surface2); }
+    .autocomplete-wrap { position: relative; }
+
+    .abv-pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; background: #dcfce7; color: var(--green); }
+
+    .snackbar { position: fixed; bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom)); left: 16px; right: 16px; z-index: 9000; background: #1d2b3a; color: white; padding: 14px 18px; border-radius: 12px; font-size: 14px; font-weight: 600; text-align: center; box-shadow: var(--shadow); opacity: 0; transition: opacity .3s; pointer-events: none; }
+    .snackbar.show { opacity: 1; }
+
+    /* ===== PHOTO ===== */
+    .cocktail-photo { width: 100%; height: 180px; object-fit: cover; border-radius: 12px; margin-bottom: 14px; display: block; }
+    .photo-upload-btn { width: 100%; padding: 14px; border: 2px dashed var(--border); border-radius: 12px; background: var(--surface2); color: var(--ink3); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: center; margin-bottom: 14px; }
+    .photo-upload-btn:active { background: var(--surface3); }
+
+    /* ===== SAVED MENU CARD ===== */
+    .saved-menu-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; cursor: pointer; }
+    .saved-menu-card.active { border-color: var(--blue); background: #eef5ff; }
+    .saved-menu-card .smc-name { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1; }
+    .saved-menu-card .smc-meta { font-size: 11px; color: var(--ink3); }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginOverlay">
+  <div class="login-logo">L</div>
+  <div class="login-title">Legend Bartending</div>
+  <div class="login-sub">Cocktail Cost & Menu Builder</div>
+  <div class="login-box">
+    <div class="login-tabs">
+      <button class="login-tab active" id="tabSignIn" onclick="switchAuthTab('signin')">Sign In</button>
+      <button class="login-tab" id="tabRegister" onclick="switchAuthTab('register')">Create Account</button>
+    </div>
+    <div class="login-field" id="authForm">
+      <input type="email" id="authEmail" placeholder="Email address" autocomplete="email"/>
+      <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password"/>
+      <div id="authConfirmWrap" style="display:none">
+        <input type="password" id="authConfirm" placeholder="Confirm password"/>
+      </div>
+      <button class="login-btn" id="authSubmitBtn" onclick="submitAuth()">Sign In</button>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ACCOUNT SHEET -->
+<div class="sheet-overlay hidden" id="accountSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title">My Account</span>
+      <button class="sheet-close" onclick="closeAccountSheet()">✕</button>
+    </div>
+    <div class="sheet-body">
+      <div style="text-align:center;padding:8px 0 20px;">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:white;margin:0 auto 10px;"><span id="accountInitial">?</span></div>
+        <div style="font-size:15px;font-weight:600;" id="accountEmail">—</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:2px;" id="accountRole">—</div>
+      </div>
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:10px;">Change Password</div>
+        <div class="field"><input type="password" id="newPassword" placeholder="New password" style="padding:12px;border-radius:10px;border:1px solid var(--border);font-size:15px;font-family:inherit;width:100%;background:var(--surface2);"/></div>
+        <div class="field"><input type="password" id="confirmPassword" placeholder="Confirm new password" style="padding:12px;border-radius:10px;border:1px solid var(--border);font-size:15px;font-family:inherit;width:100%;margin-top:8px;background:var(--surface2);"/></div>
+        <button class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="changePassword()">Update Password</button>
+      </div>
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:10px;">Admin Share Key</div>
+        <div style="font-size:13px;color:var(--ink2);margin-bottom:8px;">Enter a 6-character key from the administrator to unlock shared ingredients &amp; recipes.</div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="shareKeyInput" maxlength="6" placeholder="ABC123" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);font-size:16px;font-family:monospace;text-transform:uppercase;letter-spacing:.1em;background:var(--surface2);"/>
+          <button class="btn btn-amber btn-sm" onclick="unlockShareKey()">Unlock</button>
+        </div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:6px;" id="shareKeyStatus"></div>
+      </div>
+      <div id="adminKeySection" style="display:none;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:10px;">Your Share Key (Admin)</div>
+        <div style="font-size:13px;color:var(--ink2);margin-bottom:8px;">Share this key with users to give them read access to your ingredients and recipes.</div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="myShareKey" maxlength="6" placeholder="ABC123" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);font-size:16px;font-family:monospace;text-transform:uppercase;letter-spacing:.1em;background:var(--surface2);"/>
+          <button class="btn btn-amber btn-sm" onclick="saveMyShareKey()">Save</button>
+        </div>
+      </div>
+      <button class="btn btn-danger btn-full" onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- SNACKBAR -->
+<div class="snackbar" id="snackbar"></div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo">L</div>
+      <div class="topbar-title">Legend Bartending</div>
+    </div>
+    <div class="topbar-right">
+      <span class="sync-status" id="cloudStatus">☁ Syncing</span>
+      <button class="topbar-save-btn" onclick="saveData()">Save</button>
+      <button class="account-btn" onclick="openAccountSheet()" title="Account">👤</button>
+    </div>
+  </div>
+
+  <!-- METRICS (no menu cost) -->
+  <div class="metrics-bar" style="background:var(--nav-bg);">
+    <div class="metric"><div class="metric-val" id="mIngredients">0</div><div class="metric-lbl">Ingredients</div></div>
+    <div class="metric"><div class="metric-val" id="mCocktails">0</div><div class="metric-lbl">Cocktails</div></div>
+    <div class="metric"><div class="metric-val" id="mMenus">0</div><div class="metric-lbl">Menus</div></div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content" id="mainContent"></div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" data-tab="ingredients" onclick="setTab('ingredients')"><span class="nav-icon">🧪</span><span class="nav-label">Ingredients</span></button>
+    <button class="nav-btn" data-tab="recipes" onclick="setTab('recipes')"><span class="nav-icon">🍹</span><span class="nav-label">Recipes</span></button>
+    <button class="nav-btn" data-tab="menu" onclick="setTab('menu')"><span class="nav-icon">📋</span><span class="nav-label">Menu</span></button>
+    <button class="nav-btn" data-tab="shopping" onclick="setTab('shopping')"><span class="nav-icon">🛒</span><span class="nav-label">Shopping</span></button>
+    <button class="nav-btn" data-tab="settings" onclick="setTab('settings')"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></button>
+  </div>
+</div>
+
+<!-- INGREDIENT SHEET -->
+<div class="sheet-overlay hidden" id="ingSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title" id="ingSheetTitle">Add Ingredient</span>
+      <button class="sheet-close" onclick="closeIngSheet()">✕</button>
+    </div>
+    <div class="sheet-body" id="ingSheetBody"></div>
+    <div class="sheet-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeIngSheet()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveIngSheet()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- COCKTAIL SHEET -->
+<div class="sheet-overlay hidden" id="cocktailSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title" id="cocktailSheetTitle">Cocktail</span>
+      <button class="sheet-close" onclick="closeCocktailSheet()">✕</button>
+    </div>
+    <div class="sheet-body" id="cocktailSheetBody"></div>
+    <div class="sheet-footer" id="cocktailSheetFooter"></div>
+  </div>
+</div>
+
+<!-- MENU ITEM SHEET -->
+<div class="sheet-overlay hidden" id="menuItemSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title" id="menuItemSheetTitle">Menu Item</span>
+      <button class="sheet-close" onclick="closeMenuItemSheet()">✕</button>
+    </div>
+    <div class="sheet-body" id="menuItemSheetBody"></div>
+    <div class="sheet-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeMenuItemSheet()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMenuItemSheet()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO INPUT (hidden) -->
+<input type="file" id="photoInputLibrary" accept="image/*" style="display:none" onchange="handlePhotoUpload(event)"/>
+
+<script>
+// ===== CONFIG =====
+const STORAGE_KEY = 'legend_cocktail_cost_menu_builder_v25_ppt_import';
+const SUPABASE_URL = 'https://dcydmngafvdhxxjptexh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjeWRtbmdhZnZkaHh4anB0ZXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0OTIxNzcsImV4cCI6MjA5NjA2ODE3N30.bqSr83R3PGNNJN0FlFTjwGJyXOFz6RMlge95HquCw3E';
+const ADMIN_EMAIL = 'aerubio1@yahoo.com';
+const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let currentUser = null;
+
+// ===== STATE =====
+const defaultUnits = [
+  {id:'oz',label:'Ounce',abbr:'oz',type:'volume',toBase:1},
+  {id:'ml',label:'Milliliter',abbr:'ml',type:'volume',toBase:0.033814},
+  {id:'cl',label:'Centiliter',abbr:'cl',type:'volume',toBase:0.33814},
+  {id:'dash',label:'Dash',abbr:'dash',type:'volume',toBase:0.020833},
+  {id:'tsp',label:'Teaspoon',abbr:'tsp',type:'volume',toBase:0.166667},
+  {id:'tbsp',label:'Tablespoon',abbr:'tbsp',type:'volume',toBase:0.5},
+  {id:'cup',label:'Cup',abbr:'cup',type:'volume',toBase:8},
+  {id:'liter',label:'Liter',abbr:'L',type:'volume',toBase:33.814},
+  {id:'750ml',label:'750ml Bottle',abbr:'750ml',type:'volume',toBase:25.3606},
+  {id:'1L',label:'1L Bottle',abbr:'1L',type:'volume',toBase:33.814},
+  {id:'1.75L',label:'1.75L Bottle',abbr:'1.75L',type:'volume',toBase:59.1745},
+  {id:'count',label:'Each',abbr:'ea',type:'count',toBase:1},
+  {id:'lb',label:'Pound',abbr:'lb',type:'weight',toBase:1},
+  {id:'g',label:'Gram',abbr:'g',type:'weight',toBase:0.002205},
+  {id:'kg',label:'Kilogram',abbr:'kg',type:'weight',toBase:2.20462},
+];
+
+let state = {
+  tab: 'ingredients',
+  ingredients: [],
+  cocktails: [],
+  selectedCocktailId: '',
+  menu: [],
+  savedMenus: [],
+  savedShoppingLists: [],
+  activeShoppingListId: '',
+  menuSetup: {guests: 0, drinksPerPerson: 3},
+  units: defaultUnits,
+  defaultLiquidUnit: 'oz',
+  lastSaved: ''
+};
+
+// ===== CLOUD SYNC =====
+function setCloudStatus(msg, cls='') {
+  const el = document.getElementById('cloudStatus');
+  if (!el) return;
+  el.textContent = msg; el.className = 'sync-status ' + cls;
+}
+let _syncTimer;
+function syncToCloud() {
+  if (!currentUser) return;
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(async () => {
+    try {
+      setCloudStatus('☁ Syncing…', '');
+      const {error} = await sbClient.from('app_data').upsert({
+        id: currentUser.id, user_id: currentUser.id,
+        data: state, updated_at: new Date().toISOString()
+      }, {onConflict: 'id'});
+      if (error) throw error;
+      setCloudStatus('☁ Synced', 'synced');
+    } catch(e) { setCloudStatus('⚠ Sync failed', 'error'); }
+  }, 1500);
+}
+async function loadFromCloud() {
+  if (!currentUser) return false;
+  try {
+    setCloudStatus('☁ Loading…', '');
+    const {data, error} = await sbClient.from('app_data')
+      .select('data,updated_at').eq('id', currentUser.id).maybeSingle();
+    if (error || !data || !data.data) { setCloudStatus('☁ No cloud data', ''); return false; }
+    const loaded = data.data;
+    state = {...state, ...loaded, units: loaded.units || defaultUnits};
+    localStorage.setItem(STORAGE_KEY + '_' + currentUser.id, JSON.stringify(state));
+    setCloudStatus('☁ Synced', 'synced');
+    return true;
+  } catch(e) { setCloudStatus('⚠ Offline', 'error'); return false; }
+}
+
+// ===== AUTH =====
+let authMode = 'signin';
+function switchAuthTab(mode) {
+  authMode = mode;
+  document.getElementById('tabSignIn').classList.toggle('active', mode === 'signin');
+  document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
+  document.getElementById('authConfirmWrap').style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('authSubmitBtn').textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
+  document.getElementById('loginError').textContent = '';
+}
+async function submitAuth() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const err = document.getElementById('loginError');
+  err.textContent = '';
+  if (!email || !password) { err.textContent = 'Please enter email and password.'; return; }
+  if (authMode === 'register') {
+    const confirm = document.getElementById('authConfirm').value;
+    if (password !== confirm) { err.textContent = 'Passwords do not match.'; return; }
+    const {error} = await sbClient.auth.signUp({email, password});
+    if (error) { err.textContent = error.message; return; }
+    err.style.color = '#34d399';
+    err.textContent = 'Account created! Check your email to confirm, then sign in.';
+  } else {
+    const {data, error} = await sbClient.auth.signInWithPassword({email, password});
+    if (error) { err.textContent = 'Invalid email or password.'; return; }
+    currentUser = data.user;
+    onSignedIn();
+  }
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('loginOverlay').classList.contains('hidden')) submitAuth();
+});
+function onSignedIn() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  const saved = localStorage.getItem(STORAGE_KEY + '_' + currentUser.id);
+  if (saved) { try { const p = JSON.parse(saved); state = {...state, ...p, units: p.units || defaultUnits}; } catch(e) {} }
+  initApp();
+}
+async function initApp() {
+  renderMetrics(); render();
+  const updated = await loadFromCloud();
+  if (updated) { renderMetrics(); render(); }
+  if (currentUser.email === ADMIN_EMAIL) {
+    const {data} = await sbClient.from('share_keys').select('key').eq('owner_id', currentUser.id).maybeSingle();
+    if (data) { const el = document.getElementById('myShareKey'); if(el) el.value = data.key; }
+  }
+}
+sbClient.auth.onAuthStateChange((event, session) => {
+  if (session?.user && !currentUser) {
+    currentUser = session.user;
+    if (!document.getElementById('app').classList.contains('hidden')) return;
+    onSignedIn();
+  }
+});
+
+// ===== ACCOUNT =====
+function openAccountSheet() {
+  if (!currentUser) return;
+  const isAdmin = currentUser.email === ADMIN_EMAIL;
+  document.getElementById('accountEmail').textContent = currentUser.email;
+  document.getElementById('accountInitial').textContent = (currentUser.email||'?')[0].toUpperCase();
+  document.getElementById('accountRole').textContent = isAdmin ? '⭐ Administrator' : 'User';
+  document.getElementById('adminKeySection').style.display = isAdmin ? 'block' : 'none';
+  document.getElementById('accountSheet').classList.remove('hidden');
+}
+function closeAccountSheet() { document.getElementById('accountSheet').classList.add('hidden'); }
+async function changePassword() {
+  const np = document.getElementById('newPassword').value;
+  const cp = document.getElementById('confirmPassword').value;
+  if (!np || np !== cp) { showSnack('Passwords do not match'); return; }
+  const {error} = await sbClient.auth.updateUser({password: np});
+  if (error) { showSnack('Error: ' + error.message); return; }
+  document.getElementById('newPassword').value = '';
+  document.getElementById('confirmPassword').value = '';
+  showSnack('Password updated ✓');
+}
+async function unlockShareKey() {
+  const key = (document.getElementById('shareKeyInput').value||'').toUpperCase().trim();
+  if (key.length !== 6) { document.getElementById('shareKeyStatus').textContent = 'Key must be 6 characters.'; return; }
+  const {data, error} = await sbClient.from('share_keys').select('owner_id,label').eq('key', key).maybeSingle();
+  if (error || !data) { document.getElementById('shareKeyStatus').textContent = '❌ Invalid key.'; return; }
+  await sbClient.from('user_unlocks').upsert({user_id: currentUser.id, share_key: key}, {onConflict: 'user_id,share_key'});
+  const {data: adminData} = await sbClient.from('app_data').select('data').eq('id', data.owner_id).maybeSingle();
+  if (adminData?.data) {
+    const ai = (adminData.data.ingredients||[]).map(i => ({...i, _shared: true, _readOnly: true}));
+    const ac = (adminData.data.cocktails||[]).map(c => ({...c, _shared: true, _readOnly: true}));
+    const myIngIds = new Set(state.ingredients.map(i => i.id));
+    const myCocktailIds = new Set(state.cocktails.map(c => c.id));
+    state.ingredients = [...state.ingredients, ...ai.filter(i => !myIngIds.has(i.id))];
+    state.cocktails = [...state.cocktails, ...ac.filter(c => !myCocktailIds.has(c.id))];
+    renderMetrics(); render();
+  }
+  document.getElementById('shareKeyStatus').textContent = '✅ Unlocked!';
+}
+async function saveMyShareKey() {
+  const key = (document.getElementById('myShareKey').value||'').toUpperCase().trim();
+  if (key.length !== 6) { showSnack('Key must be exactly 6 characters'); return; }
+  const {error} = await sbClient.from('share_keys').upsert({key, owner_id: currentUser.id, label: 'Legend Bartending'}, {onConflict: 'key'});
+  if (error) { showSnack('Error: ' + error.message); return; }
+  showSnack('Share key saved ✓');
+}
+async function signOut() {
+  await sbClient.auth.signOut();
+  currentUser = null;
+  state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],savedShoppingLists:[],activeShoppingListId:'',units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:''};
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  document.getElementById('accountSheet').classList.add('hidden');
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('loginError').textContent = '';
+}
+
+// ===== HELPERS =====
+function money(v) { return '$' + Number(v||0).toFixed(2); }
+function esc(s) { return String(s??'').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+function ingMap() { return Object.fromEntries(state.ingredients.map(i => [i.id, i])); }
+function unitMap() { return Object.fromEntries(state.units.map(u => [u.id, u])); }
+function uid() { return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2); }
+function costPerUnit(i) { return Number(i.purchaseCost ?? i.packageCost ?? 0) / (Number(i.yieldQty ?? i.packageSize ?? 1) || 1); }
+function convertQty(q, from, to) {
+  if (from === to) return Number(q||0);
+  const um = unitMap(); const a = um[from], b = um[to];
+  if (a && b && a.type === b.type) return Number(q||0) * a.toBase / b.toBase;
+  return Number(q||0);
+}
+function lineCost(r) {
+  const i = ingMap()[r.ingredientId]; if (!i) return 0;
+  const ru = i.recipeUnit || i.unit;
+  const q = convertQty(r.qty, r.unit || ru, ru);
+  return q * costPerUnit(i);
+}
+function cocktailCost(c) { return (c.recipe||[]).reduce((s,r) => s+lineCost(r), 0); }
+function cocktailAbv(c) {
+  let totalVol = 0, totalAlc = 0;
+  (c.recipe||[]).forEach(r => {
+    const i = ingMap()[r.ingredientId]; if (!i) return;
+    const vol = convertQty(r.qty, r.unit || i.unit, 'oz');
+    if (!isNaN(vol) && i.abv) { totalVol += vol; totalAlc += vol * (Number(i.abv)||0) / 100; }
+  });
+  return totalVol > 0 ? (totalAlc/totalVol*100) : null;
+}
+function getMenuCocktail(m) { return state.cocktails.find(x => x.id === (m.cocktailId || m.id || m.cocktail_id)); }
+function totals() {
+  const menuItems = Array.isArray(state.menu) ? state.menu : [];
+  const menuCost = menuItems.reduce((s,m) => { const c = getMenuCocktail(m); return s + (c ? cocktailCost(c) * Number(m.servings||0) : 0); }, 0);
+  return {menuCost, servings: menuItems.reduce((s,m) => s+Number(m.servings||0), 0)};
+}
+function saveData() {
+  state.lastSaved = new Date().toISOString();
+  const key = currentUser ? STORAGE_KEY + '_' + currentUser.id : STORAGE_KEY;
+  localStorage.setItem(key, JSON.stringify(state));
+  syncToCloud();
+  showSnack('Saved ✓');
+}
+function showSnack(msg) {
+  const el = document.getElementById('snackbar');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ===== TABS =====
+let currentTab = state.tab || 'ingredients';
+function setTab(t) {
+  currentTab = t; state.tab = t;
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  render();
+}
+function render() {
+  renderMetrics();
+  const el = document.getElementById('mainContent');
+  if (!el) return;
+  if (currentTab === 'ingredients') el.innerHTML = renderIngredients();
+  else if (currentTab === 'recipes') el.innerHTML = renderRecipes();
+  else if (currentTab === 'menu') el.innerHTML = renderMenu();
+  else if (currentTab === 'shopping') el.innerHTML = renderShopping();
+  else if (currentTab === 'settings') el.innerHTML = renderSettings();
+}
+function renderMetrics() {
+  const mi = document.getElementById('mIngredients');
+  const mc = document.getElementById('mCocktails');
+  const mm = document.getElementById('mMenus');
+  if (mi) mi.textContent = state.ingredients.length;
+  if (mc) mc.textContent = state.cocktails.length;
+  if (mm) mm.textContent = (state.savedMenus||[]).length;
+}
+
+// ===== INGREDIENTS TAB =====
+let ingSearch = '';
+let ingCat = 'All';
+
+function getIngCats() {
+  const cats = [...new Set(state.ingredients.map(i => i.category).filter(Boolean))].sort();
+  return ['All', ...cats];
+}
+
+function getIngredientCards() {
+  const q = ingSearch.toLowerCase();
+  let list = state.ingredients.filter(i => {
+    const matchCat = ingCat === 'All' || (i.category||'') === ingCat;
+    const matchQ = !q || i.name.toLowerCase().includes(q) || (i.brand||'').toLowerCase().includes(q);
+    return matchCat && matchQ;
+  });
+  list = [...list].sort((a,b) => a.name.localeCompare(b.name));
+  if (list.length === 0) return `<div class="empty"><div class="empty-icon">🧪</div><div class="empty-title">No ingredients found</div><div class="empty-sub">Add your first ingredient</div></div>`;
+  return list.map(i => {
+    const cpu = costPerUnit(i);
+    const usedIn = state.cocktails.filter(c => (c.recipe||[]).some(r => r.ingredientId === i.id)).length;
+    return `<div class="card" onclick="openIngSheet('${i.id}')">
+      <div class="card-body">
+        <div class="card-name">${esc(i.name)}</div>
+        <div class="card-sub">${esc(i.brand||'')}${i.brand&&i.category?' · ':''}${esc(i.category||'')}</div>
+      </div>
+      <div class="card-right">
+        ${i.abv ? `<span class="abv-pill">${i.abv}%</span>` : ''}
+        ${usedIn > 0 ? `<div class="use-badge">${usedIn}</div>` : ''}
+        <span class="badge amber">${money(cpu)}/oz</span>
+        <span class="chevron-right">›</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateIngredientList() {
+  const el = document.getElementById('ingCardList');
+  if (el) el.innerHTML = getIngredientCards();
+  document.querySelectorAll('.ing-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === ingCat));
+}
+
+function renderIngredients() {
+  const pills = getIngCats().map(c => `<button class="pill ing-pill${ingCat===c?' active':''}" data-cat="${esc(c)}" onclick="setIngCat('${esc(c)}')">${esc(c)}</button>`).join('');
+  return `
+    <div class="page-header">
+      <div class="page-title">Ingredients</div>
+      <button class="page-action" onclick="openIngSheet()">+ Add</button>
+    </div>
+    <div class="search-wrap">
+      <input class="search-input" id="ingSearchInput" placeholder="Search ingredients…" value="${esc(ingSearch)}" oninput="ingSearch=this.value;updateIngredientList()"/>
+    </div>
+    <div class="pill-row">${pills}</div>
+    <div class="card-list" id="ingCardList">${getIngredientCards()}</div>
+  `;
+}
+function setIngCat(c) { ingCat = c; updateIngredientList(); }
+
+let ingDraft = null;
+function openIngSheet(id) {
+  if (id) {
+    const found = state.ingredients.find(i => i.id === id);
+    if (!found) return;
+    ingDraft = JSON.parse(JSON.stringify(found));
+    document.getElementById('ingSheetTitle').textContent = 'Edit Ingredient';
+  } else {
+    ingDraft = {id: uid(), name:'', brand:'', category:'Spirits', unit:'oz', recipeUnit:'oz', packageSize:750, packageCost:0, yieldQty:750, purchaseCost:0, abv:'', notes:''};
+    document.getElementById('ingSheetTitle').textContent = 'Add Ingredient';
+  }
+  renderIngSheetBody();
+  document.getElementById('ingSheet').classList.remove('hidden');
+}
+function closeIngSheet() { document.getElementById('ingSheet').classList.add('hidden'); ingDraft = null; }
+function renderIngSheetBody() {
+  const i = ingDraft;
+  const allCats = getIngCats().filter(c=>c!=='All');
+  const extraCats = ['Spirits','Liqueurs / Fortified','Mixers / Bubbles','Fruit / Citrus / Juice','Syrups / Sweeteners','Bitters','Garnish / Produce','Other'];
+  const catSet = [...new Set([...allCats, ...extraCats])].sort();
+  const catOpts = catSet.map(c=>`<option value="${esc(c)}"${i.category===c?' selected':''}>${esc(c)}</option>`).join('');
+  const unitOpts = state.units.map(u=>`<option value="${u.id}"${i.unit===u.id?' selected':''}>${esc(u.abbr)} — ${esc(u.label)}</option>`).join('');
+  const recOpts = state.units.map(u=>`<option value="${u.id}"${(i.recipeUnit||i.unit)===u.id?' selected':''}>${esc(u.abbr)} — ${esc(u.label)}</option>`).join('');
+  document.getElementById('ingSheetBody').innerHTML = `
+    <div class="field"><label>Name *</label><input type="text" value="${esc(i.name)}" oninput="ingDraft.name=this.value" placeholder="e.g. Bombay Sapphire Gin"/></div>
+    <div class="field"><label>Brand</label><input type="text" value="${esc(i.brand||'')}" oninput="ingDraft.brand=this.value" placeholder="e.g. Bombay Sapphire"/></div>
+    <div class="field"><label>Category</label><select onchange="ingDraft.category=this.value">${catOpts}</select></div>
+    <div class="field-row">
+      <div class="field"><label>ABV %</label><input type="number" step="0.1" value="${esc(i.abv||'')}" oninput="ingDraft.abv=this.value" placeholder="e.g. 40"/></div>
+      <div class="field"><label>Purchase Unit</label><select onchange="ingDraft.unit=this.value">${unitOpts}</select></div>
+    </div>
+    <div class="field"><label>Recipe Unit</label><select onchange="ingDraft.recipeUnit=this.value">${recOpts}</select></div>
+    <div class="field-row">
+      <div class="field"><label>Package Size</label><input type="number" step="0.01" value="${esc(i.packageSize||i.yieldQty||750)}" oninput="ingDraft.packageSize=Number(this.value);ingDraft.yieldQty=Number(this.value)"/></div>
+      <div class="field"><label>Purchase Cost $</label><input type="number" step="0.01" value="${esc(i.purchaseCost??i.packageCost??0)}" oninput="ingDraft.purchaseCost=Number(this.value);ingDraft.packageCost=Number(this.value)"/></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea oninput="ingDraft.notes=this.value">${esc(i.notes||'')}</textarea></div>
+    ${i.id && state.ingredients.find(x=>x.id===i.id) ? `<button class="btn btn-danger btn-full" onclick="deleteIngredient('${i.id}')">Delete Ingredient</button>` : ''}
+  `;
+}
+function saveIngSheet() {
+  if (!ingDraft.name.trim()) { showSnack('Name is required'); return; }
+  const idx = state.ingredients.findIndex(x => x.id === ingDraft.id);
+  if (idx >= 0) state.ingredients[idx] = ingDraft;
+  else state.ingredients.push(ingDraft);
+  closeIngSheet(); saveData(); render();
+}
+function deleteIngredient(id) {
+  if (!confirm('Delete this ingredient?')) return;
+  state.ingredients = state.ingredients.filter(i => i.id !== id);
+  state.cocktails.forEach(c => { c.recipe = (c.recipe||[]).filter(r => r.ingredientId !== id); });
+  closeIngSheet(); saveData(); render();
+}
+
+// ===== RECIPES TAB =====
+let recipeSearch = '';
+
+function getCocktailCards() {
+  const q = recipeSearch.toLowerCase();
+  const list = state.cocktails.filter(c => !q || c.name.toLowerCase().includes(q) || (c.category||'').toLowerCase().includes(q));
+  if (list.length === 0) return `<div class="empty"><div class="empty-icon">🍹</div><div class="empty-title">No cocktails yet</div><div class="empty-sub">Add your first recipe</div></div>`;
+  return list.map(c => {
+    const cost = cocktailCost(c);
+    const abv = cocktailAbv(c);
+    return `<div class="card" onclick="openCocktailSheet('${c.id}')">
+      <div class="card-body">
+        <div class="card-name">${esc(c.name)}</div>
+        <div class="card-sub">${esc(c.category||'')} · ${(c.recipe||[]).length} ingredients</div>
+      </div>
+      <div class="card-right">
+        ${abv !== null ? `<span class="abv-pill">${abv.toFixed(1)}%</span>` : ''}
+        <span class="badge amber">${money(cost)}</span>
+        <span class="chevron-right">›</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateRecipeList() {
+  const el = document.getElementById('recipeCardList');
+  if (el) el.innerHTML = getCocktailCards();
+}
+
+function renderRecipes() {
+  return `
+    <div class="page-header">
+      <div class="page-title">Recipes</div>
+      <button class="page-action" onclick="addCocktail()">+ Add</button>
+    </div>
+    <div class="search-wrap">
+      <input class="search-input" id="recipeSearchInput" placeholder="Search cocktails…" value="${esc(recipeSearch)}" oninput="recipeSearch=this.value;updateRecipeList()"/>
+    </div>
+    <div class="card-list" id="recipeCardList">${getCocktailCards()}</div>
+  `;
+}
+
+function addCocktail() {
+  const id = uid();
+  state.cocktails.push({id, name:'New Cocktail', category:'Signature Cocktail', notes:'', glass:'', served:'', build:'', garnish:'', specialInstructions:'', recipe:[], photo:''});
+  saveData(); openCocktailSheet(id);
+}
+
+let cocktailDraft = null;
+let cocktailTab = 'recipe';
+
+function openCocktailSheet(id) {
+  const c = state.cocktails.find(x => x.id === id);
+  if (!c) return;
+  cocktailDraft = JSON.parse(JSON.stringify(c));
+  cocktailTab = 'recipe';
+  document.getElementById('cocktailSheetTitle').textContent = c.name || 'Cocktail';
+  renderCocktailSheet();
+  document.getElementById('cocktailSheet').classList.remove('hidden');
+}
+function closeCocktailSheet() { document.getElementById('cocktailSheet').classList.add('hidden'); cocktailDraft = null; }
+
+function renderCocktailSheet() {
+  const c = cocktailDraft;
+  const cost = cocktailCost(c);
+  const abv = cocktailAbv(c);
+
+  let body = `<div class="inner-tabs">
+    <button class="inner-tab${cocktailTab==='info'?' active':''}" onclick="cocktailTab='info';renderCocktailSheet()">Info</button>
+    <button class="inner-tab${cocktailTab==='recipe'?' active':''}" onclick="cocktailTab='recipe';renderCocktailSheet()">Recipe</button>
+    <button class="inner-tab${cocktailTab==='photo'?' active':''}" onclick="cocktailTab='photo';renderCocktailSheet()">Photo</button>
+  </div>`;
+
+  if (cocktailTab === 'info') {
+    const catOpts = ['Signature Cocktail','Classic Cocktail','Mocktail','Spirit Forward','Beer / Wine','Shots','Other'].map(cat => `<option value="${esc(cat)}"${c.category===cat?' selected':''}>${esc(cat)}</option>`).join('');
+    const glassOpts = ['','Rocks Glass','Highball','Coupe','Martini','Wine Glass','Champagne Flute','Shot Glass','Mug','Copper Mug','Tiki Glass','Collins Glass','Other'].map(g => `<option value="${esc(g)}"${c.glass===g?' selected':''}>${esc(g)||'— Select —'}</option>`).join('');
+    const servedOpts = ['','Straight Up','On the Rocks','Blended','Neat','Shots'].map(s => `<option value="${esc(s)}"${c.served===s?' selected':''}>${esc(s)||'— Select —'}</option>`).join('');
+    body += `
+      <div class="field"><label>Name</label><input type="text" value="${esc(c.name)}" oninput="cocktailDraft.name=this.value;document.getElementById('cocktailSheetTitle').textContent=this.value||'Cocktail'"/></div>
+      <div class="field"><label>Category</label><select onchange="cocktailDraft.category=this.value">${catOpts}</select></div>
+      <div class="field-row">
+        <div class="field"><label>Glass</label><select onchange="cocktailDraft.glass=this.value">${glassOpts}</select></div>
+        <div class="field"><label>Served</label><select onchange="cocktailDraft.served=this.value">${servedOpts}</select></div>
+      </div>
+      <div class="field"><label>Build Method</label><input type="text" value="${esc(c.build||'')}" oninput="cocktailDraft.build=this.value" placeholder="e.g. Shake, strain over ice"/></div>
+      <div class="field"><label>Garnish</label><input type="text" value="${esc(c.garnish||'')}" oninput="cocktailDraft.garnish=this.value" placeholder="e.g. Lime wheel"/></div>
+      <div class="field"><label>Notes</label><textarea oninput="cocktailDraft.notes=this.value">${esc(c.notes||'')}</textarea></div>
+      <div class="field"><label>Special Instructions</label><textarea oninput="cocktailDraft.specialInstructions=this.value">${esc(c.specialInstructions||'')}</textarea></div>
+    `;
+  } else if (cocktailTab === 'photo') {
+    body += `
+      ${c.photo ? `<img src="${c.photo}" class="cocktail-photo" alt="Cocktail photo"/>` : ''}
+      <button class="photo-upload-btn" onclick="document.getElementById('photoInputLibrary').click()">
+        🖼️ ${c.photo ? 'Change Photo' : 'Add Photo'}
+      </button>
+      ${c.photo ? `<button class="btn btn-danger btn-full" onclick="cocktailDraft.photo='';renderCocktailSheet()">Remove Photo</button>` : ''}
+    `;
+  } else {
+    // Recipe tab
+    body += `<div style="display:flex;gap:8px;margin-bottom:14px;">
+      <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:var(--amber);">${money(cost)}</div>
+        <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">Pour Cost</div>
+      </div>
+      ${abv !== null ? `<div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:var(--green);">${abv.toFixed(1)}%</div>
+        <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">ABV</div>
+      </div>` : ''}
+    </div>`;
+
+    const lines = (c.recipe||[]).map((r, idx) => {
+      const ing = ingMap()[r.ingredientId];
+      const lc = lineCost(r);
+      const unitOpts = state.units.map(u=>`<option value="${u.id}"${r.unit===u.id?' selected':''}>${esc(u.abbr)}</option>`).join('');
+      return `<div class="recipe-line">
+        <div class="autocomplete-wrap">
+          <input style="margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;"
+            placeholder="Search ingredient…"
+            value="${esc(ing ? ing.name : (r.ingredientId||''))}"
+            oninput="filterRecipeIng(${idx},this.value)"
+            onfocus="filterRecipeIng(${idx},this.value)"
+            onblur="setTimeout(()=>hideRecipeIng(${idx}),200)"/>
+          <div class="autocomplete-list hidden" id="recipeIngList${idx}"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:80px 1fr auto;gap:8px;align-items:center;">
+          <input type="number" step="0.25" min="0" style="padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:15px;font-family:inherit;width:100%;text-align:center;" value="${r.qty||1}" onchange="cocktailDraft.recipe[${idx}].qty=Number(this.value);renderCocktailSheet()"/>
+          <select style="padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:14px;font-family:inherit;" onchange="cocktailDraft.recipe[${idx}].unit=this.value;renderCocktailSheet()">${unitOpts}</select>
+          <div style="text-align:right;">
+            <div style="font-size:13px;font-weight:600;color:var(--amber);">${money(lc)}</div>
+            <button class="btn-icon red" onclick="cocktailDraft.recipe.splice(${idx},1);renderCocktailSheet()">✕</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    body += lines + `<button class="btn btn-secondary btn-full" style="margin-top:4px;" onclick="cocktailDraft.recipe.push({ingredientId:'',qty:1,unit:'oz'});renderCocktailSheet()">+ Add Ingredient</button>`;
+  }
+
+  document.getElementById('cocktailSheetBody').innerHTML = body;
+  document.getElementById('cocktailSheetFooter').innerHTML = `
+    <button class="btn btn-danger btn-sm" onclick="deleteCocktailDraft()">Delete</button>
+    <button class="btn btn-secondary btn-sm" onclick="closeCocktailSheet()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveCocktailSheet()">Save</button>
+  `;
+}
+
+// Photo handling
+function handlePhotoUpload(event) {
+  const file = event.target.files[0];
+  if (!file || !cocktailDraft) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    cocktailDraft.photo = e.target.result;
+    cocktailTab = 'photo';
+    renderCocktailSheet();
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function filterRecipeIng(idx, val) {
+  const list = document.getElementById('recipeIngList'+idx);
+  if (!list) return;
+  const q = val.toLowerCase();
+  const matches = state.ingredients.filter(i => i.name.toLowerCase().includes(q) || (i.brand||'').toLowerCase().includes(q)).slice(0,10);
+  if (!matches.length || !q) { list.classList.add('hidden'); return; }
+  list.innerHTML = matches.map(i => `<div class="autocomplete-item" onmousedown="selectRecipeIng(${idx},'${i.id}')">${esc(i.name)}${i.brand?' — '+esc(i.brand):''}</div>`).join('');
+  list.classList.remove('hidden');
+}
+function hideRecipeIng(idx) { const l = document.getElementById('recipeIngList'+idx); if(l) l.classList.add('hidden'); }
+function selectRecipeIng(idx, ingId) {
+  const ing = ingMap()[ingId]; if (!ing) return;
+  cocktailDraft.recipe[idx].ingredientId = ingId;
+  cocktailDraft.recipe[idx].unit = ing.recipeUnit || ing.unit || 'oz';
+  renderCocktailSheet();
+}
+function saveCocktailSheet() {
+  const idx = state.cocktails.findIndex(x => x.id === cocktailDraft.id);
+  if (idx >= 0) state.cocktails[idx] = cocktailDraft;
+  closeCocktailSheet(); saveData(); render();
+}
+function deleteCocktailDraft() {
+  if (!confirm('Delete this cocktail?')) return;
+  state.cocktails = state.cocktails.filter(c => c.id !== cocktailDraft.id);
+  state.menu = state.menu.filter(m => m.cocktailId !== cocktailDraft.id);
+  closeCocktailSheet(); saveData(); render();
+}
+
+// ===== MENU TAB =====
+function menuAvgAbv() {
+  const menuItems = Array.isArray(state.menu) ? state.menu : [];
+  let totalVol = 0, totalAlc = 0;
+  menuItems.forEach(m => {
+    const c = getMenuCocktail(m); if (!c) return;
+    const servings = Number(m.servings||0);
+    (c.recipe||[]).forEach(r => {
+      const i = ingMap()[r.ingredientId]; if (!i) return;
+      const vol = convertQty(r.qty, r.unit||i.unit, 'oz') * servings;
+      if (!isNaN(vol)) { totalVol += vol; if(i.abv) totalAlc += vol * (Number(i.abv)||0) / 100; }
+    });
+  });
+  return totalVol > 0 ? (totalAlc/totalVol*100) : null;
+}
+
+// ===== MENU STATE =====
+let menuTab = 'setup'; // 'setup' | 'cocktails' | 'summary'
+
+function renderMenu() {
+  const tabs = `
+    <div style="display:flex;gap:4px;padding:0 16px 14px;">
+      <button style="flex:1;padding:9px;border-radius:8px;border:none;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:${menuTab==='setup'?'var(--blue)':'var(--surface2)'};color:${menuTab==='setup'?'white':'var(--ink3)'};" onclick="menuTab='setup';render()">⚙️ Setup</button>
+      <button style="flex:1;padding:9px;border-radius:8px;border:none;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:${menuTab==='cocktails'?'var(--blue)':'var(--surface2)'};color:${menuTab==='cocktails'?'white':'var(--ink3)'};" onclick="menuTab='cocktails';render()">📋 Current Menu</button>
+      <button style="flex:1;padding:9px;border-radius:8px;border:none;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:${menuTab==='summary'?'var(--blue)':'var(--surface2)'};color:${menuTab==='summary'?'white':'var(--ink3)'};" onclick="menuTab='summary';render()">📊 Summary</button>
+    </div>`;
+
+  let content = '';
+
+  if (menuTab === 'setup') {
+    content = renderMenuSetup();
+  } else if (menuTab === 'cocktails') {
+    content = renderMenuCocktails();
+  } else {
+    content = renderMenuSummary();
+  }
+
+  return `
+    <div class="page-header">
+      <div class="page-title">Menu Builder</div>
+    </div>
+    <div style="padding:0 16px 4px;">${tabs}</div>
+    ${content}
+  `;
+}
+
+function renderMenuSetup() {
+  const guests = state.menuSetup?.guests || 0;
+  const drinksPerPerson = state.menuSetup?.drinksPerPerson || 3;
+  const totalServings = guests * drinksPerPerson;
+  const savedMenus = Array.isArray(state.savedMenus) ? state.savedMenus : [];
+
+  return `
+    <div style="padding:0 16px 16px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow-sm);">
+        <div style="font-size:14px;font-weight:700;color:var(--ink);margin-bottom:12px;">Event Details</div>
+        <div class="field-row" style="margin-bottom:12px;">
+          <div class="field">
+            <label>Total Guests</label>
+            <input type="number" min="0" value="${guests}" oninput="if(!state.menuSetup)state.menuSetup={};state.menuSetup.guests=Number(this.value);updateMenuSetupCalc()"/>
+          </div>
+          <div class="field">
+            <label>Drinks / Person</label>
+            <input type="number" min="1" step="0.5" value="${drinksPerPerson}" oninput="if(!state.menuSetup)state.menuSetup={};state.menuSetup.drinksPerPerson=Number(this.value);updateMenuSetupCalc()"/>
+          </div>
+        </div>
+        <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:28px;font-weight:800;color:var(--amber);" id="totalServingsDisplay">${totalServings}</div>
+          <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">Total Servings Needed</div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" style="margin-bottom:12px;" onclick="applyServingsToMenu()">Apply to Cocktails →</button>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn btn-secondary btn-sm" onclick="saveCurrentMenu()">💾 Save Menu</button>
+        <button class="btn btn-secondary btn-sm" onclick="generateShoppingFromMenu()">🛒 To Shopping</button>
+        <button class="btn btn-secondary btn-sm" onclick="shareRecipes()" style="font-size:16px;padding:8px 12px;" title="Share Recipes">⬆️</button>
+      </div>
+      ${savedMenus.length > 0 ? `
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px;">Saved Menus</div>
+        ${savedMenus.map((sm,idx) => `
+          <div class="saved-menu-card" onclick="loadSavedMenu(${idx})">
+            <div>
+              <div class="smc-name">${esc(sm.name||'Menu '+(idx+1))}</div>
+              <div class="smc-meta">${(sm.items||[]).length} cocktails · ${sm.updatedAt||''}</div>
+            </div>
+            <button class="btn-icon red" style="flex-shrink:0" onclick="event.stopPropagation();deleteSavedMenu(${idx})">✕</button>
+          </div>`).join('')}
+      ` : ''}
+    </div>`;
+}
+
+function updateMenuSetupCalc() {
+  const g = state.menuSetup?.guests || 0;
+  const d = state.menuSetup?.drinksPerPerson || 3;
+  const el = document.getElementById('totalServingsDisplay');
+  if (el) el.textContent = g * d;
+}
+
+function applyServingsToMenu() {
+  const total = (state.menuSetup?.guests||0) * (state.menuSetup?.drinksPerPerson||3);
+  if (total === 0) { showSnack('Enter guests and drinks/person first'); return; }
+  if (!Array.isArray(state.menu) || state.menu.length === 0) { showSnack('Add cocktails first in the Cocktails tab'); return; }
+  // Distribute servings by percentage
+  state.menu.forEach(m => {
+    const pct = Number(m.pct||0) / 100;
+    m.servings = Math.round(total * pct);
+  });
+  saveData(); menuTab = 'cocktails'; render();
+  showSnack('Servings applied ✓');
+}
+
+function renderMenuCocktails() {
+  const menuItems = Array.isArray(state.menu) ? state.menu : [];
+  const totalPct = menuItems.reduce((s,m) => s + Number(m.pct||0), 0);
+  const pctColor = Math.abs(totalPct - 100) < 0.01 ? 'var(--green)' : totalPct > 100 ? 'var(--red)' : 'var(--amber)';
+  const totalServings = (state.menuSetup?.guests||0) * (state.menuSetup?.drinksPerPerson||3);
+
+  const rows = menuItems.length === 0
+    ? `<div class="empty"><div class="empty-icon">🍹</div><div class="empty-title">No cocktails yet</div><div class="empty-sub">Tap + Add to add cocktails to your menu</div></div>`
+    : menuItems.map((m, idx) => {
+        const c = getMenuCocktail(m);
+        const cost = cocktailCost(c||{recipe:[]});
+        const qty = totalServings > 0 ? Math.round(totalServings * Number(m.pct||0) / 100) : Number(m.servings||0);
+        return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px;box-shadow:var(--shadow-sm);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="flex:1;font-size:15px;font-weight:600;text-transform:capitalize;">${esc(c?c.name:(m.cocktailName||'Unknown'))}</div>
+            <span style="font-size:12px;color:var(--amber);font-weight:700;">${money(cost)}/drink</span>
+            <button class="btn-icon red" onclick="state.menu.splice(${idx},1);saveData();render()">✕</button>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>% of Crowd</label>
+              <input type="number" min="0" max="100" step="1" value="${m.pct||0}"
+                onchange="state.menu[${idx}].pct=Number(this.value);state.menu[${idx}].servings=Math.round((state.menuSetup?.guests||0)*(state.menuSetup?.drinksPerPerson||3)*Number(this.value)/100);saveData();render()"
+                style="text-align:center;font-size:18px;font-weight:700;"/>
+            </div>
+            <div class="field">
+              <label>Qty</label>
+              <div style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);font-size:18px;font-weight:800;color:var(--blue);text-align:center;">${qty}</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--ink3);">${money(cost * qty)} total · ${money(cost)}/drink</div>
+        </div>`;
+      }).join('');
+
+  return `
+    <div style="padding:0 16px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:13px;color:var(--ink2);">Total allocation: <b style="color:${pctColor}">${totalPct.toFixed(0)}%</b>${totalServings>0?` · ${totalServings} total drinks`:''}</div>
+        <button class="page-action" onclick="addMenuItem()">+ Add</button>
+      </div>
+      ${rows}
+    </div>`;
+}
+
+function renderMenuSummary() {
+  const menuItems = Array.isArray(state.menu) ? state.menu : [];
+  const total = menuItems.reduce((s,m) => { const c = getMenuCocktail(m); return s + (c ? cocktailCost(c) * Number(m.servings||0) : 0); }, 0);
+  const servings = menuItems.reduce((s,m) => s+Number(m.servings||0), 0);
+  const revenue = menuItems.reduce((s,m) => s+Number(m.salePrice||0)*Number(m.servings||0), 0);
+  const avgCostPerServing = servings > 0 ? total / servings : 0;
+  const avgAbv = menuAvgAbv();
+
+  const rows = menuItems.map(m => {
+    const c = getMenuCocktail(m); if (!c) return '';
+    const cost = cocktailCost(c) * Number(m.servings||0);
+    const rev = Number(m.salePrice||0) * Number(m.servings||0);
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:14px;font-weight:600;text-transform:capitalize;">${esc(c.name)}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--amber);">${money(cost)}</div>
+      </div>
+      <div style="font-size:12px;color:var(--ink3);">${m.pct||0}% · ${m.servings||0} servings${m.salePrice?` · Revenue: ${money(rev)}`:''}${c?` · ABV: ${(cocktailAbv(c)||0).toFixed(1)}%`:''}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div style="padding:0 16px 16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow-sm);">
+          <div style="font-size:22px;font-weight:800;color:var(--ink);">${servings}</div>
+          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Event Servings</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow-sm);">
+          <div style="font-size:22px;font-weight:800;color:var(--amber);">${money(total)}</div>
+          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Est. Shopping Cost</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow-sm);">
+          <div style="font-size:22px;font-weight:800;color:var(--teal);">${money(avgCostPerServing)}</div>
+          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Avg Cost / Serving</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow-sm);">
+          <div style="font-size:22px;font-weight:800;color:var(--green);">${avgAbv !== null ? avgAbv.toFixed(1)+'%' : '—'}</div>
+          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Avg Menu ABV</div>
+        </div>
+      </div>
+      ${revenue > 0 ? `<div style="background:#f0fdfb;border:1px solid #b2e4df;border-radius:10px;padding:12px;text-align:center;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--teal);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Est. Revenue</div>
+        <div style="font-size:26px;font-weight:800;color:var(--teal);">${money(revenue)}</div>
+      </div>` : ''}
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px;">Cocktail Breakdown</div>
+      ${rows || `<div class="empty"><div class="empty-sub">No cocktails added yet</div></div>`}
+    </div>`;
+}
+
+function loadSavedMenu(idx) {
+  const sm = state.savedMenus[idx];
+  if (!sm) return;
+  state.menu = JSON.parse(JSON.stringify(sm.items||[]));
+  saveData(); render();
+  showSnack('Loaded: ' + (sm.name||'Menu'));
+}
+function deleteSavedMenu(idx) {
+  if (!confirm('Delete this saved menu?')) return;
+  state.savedMenus.splice(idx, 1);
+  saveData(); render();
+}
+function saveCurrentMenu() {
+  const name = prompt('Name this menu:', 'Event Menu ' + new Date().toLocaleDateString());
+  if (!name) return;
+  if (!Array.isArray(state.savedMenus)) state.savedMenus = [];
+  state.savedMenus.push({id: uid(), name, items: JSON.parse(JSON.stringify(state.menu)), createdAt: new Date().toLocaleDateString(), updatedAt: new Date().toLocaleDateString()});
+  saveData(); render();
+  showSnack('Menu saved ✓');
+}
+function generateShoppingFromMenu() {
+  setTab('shopping');
+  showSnack('Shopping list updated from menu');
+}
+
+function addMenuItem() {
+  if (!Array.isArray(state.menu)) state.menu = [];
+  // Open cocktail picker sheet
+  openMenuCocktailPicker();
+}
+
+function openMenuCocktailPicker() {
+  const opts = state.cocktails.map(c => `
+    <div class="card" onclick="addCocktailToMenu('${c.id}')">
+      <div class="card-body">
+        <div class="card-name">${esc(c.name)}</div>
+        <div class="card-sub">${money(cocktailCost(c))}/drink · ${esc(c.category||'')}</div>
+      </div>
+      <span class="chevron-right">+</span>
+    </div>`).join('');
+  const el = document.getElementById('mainContent');
+  el.innerHTML = `
+    <div class="page-header">
+      <div><button class="btn btn-secondary btn-sm" onclick="menuTab='cocktails';render()">← Back</button></div>
+      <div class="page-title" style="font-size:17px;">Pick Cocktail</div>
+    </div>
+    <div class="card-list">${opts || '<div class="empty"><div class="empty-sub">No cocktails found — add recipes first</div></div>'}</div>
+  `;
+}
+
+function addCocktailToMenu(cocktailId) {
+  if (!Array.isArray(state.menu)) state.menu = [];
+  if (state.menu.find(m => m.cocktailId === cocktailId)) { showSnack('Already in menu'); menuTab='cocktails'; render(); return; }
+  state.menu.push({cocktailId, servings:0, salePrice:0, pct:0});
+  saveData(); menuTab = 'cocktails'; render();
+}
+
+let menuItemIdx = -1;
+let menuItemDraft = null;
+function openMenuItemSheet(idx) {
+  menuItemIdx = idx;
+  menuItemDraft = {...state.menu[idx]};
+  document.getElementById('menuItemSheetTitle').textContent = 'Menu Item';
+  renderMenuItemSheet();
+  document.getElementById('menuItemSheet').classList.remove('hidden');
+}
+function closeMenuItemSheet() { document.getElementById('menuItemSheet').classList.add('hidden'); menuItemDraft = null; }
+function renderMenuItemSheet() {
+  const m = menuItemDraft;
+  const cocktailOpts = state.cocktails.map(c => `<option value="${c.id}"${m.cocktailId===c.id?' selected':''}>${esc(c.name)}</option>`).join('');
+  const selectedC = state.cocktails.find(x => x.id === m.cocktailId);
+  const pourCost = selectedC ? cocktailCost(selectedC) : 0;
+  document.getElementById('menuItemSheetBody').innerHTML = `
+    <div class="field"><label>Cocktail</label><select onchange="menuItemDraft.cocktailId=this.value;renderMenuItemSheet()"><option value="">— Select —</option>${cocktailOpts}</select></div>
+    ${selectedC ? `<div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:14px;text-align:center;">
+      <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">Pour Cost per Drink</div>
+      <div style="font-size:24px;font-weight:800;color:var(--amber);">${money(pourCost)}</div>
+    </div>` : ''}
+    <div class="field-row">
+      <div class="field"><label>Servings</label><input type="number" min="0" value="${m.servings||0}" oninput="menuItemDraft.servings=Number(this.value)"/></div>
+      <div class="field"><label>Sale Price $</label><input type="number" step="0.50" min="0" value="${m.salePrice||0}" oninput="menuItemDraft.salePrice=Number(this.value)"/></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea oninput="menuItemDraft.notes=this.value">${esc(m.notes||'')}</textarea></div>
+    <button class="btn btn-danger btn-full" onclick="deleteMenuItem()">Remove from Menu</button>
+  `;
+}
+function saveMenuItemSheet() { state.menu[menuItemIdx] = menuItemDraft; closeMenuItemSheet(); saveData(); render(); }
+function deleteMenuItem() { state.menu.splice(menuItemIdx, 1); closeMenuItemSheet(); saveData(); render(); }
+
+// ===== SHOPPING TAB =====
+function buildShoppingFromMenu() {
+  const ingUsage = {};
+  const menuItems = Array.isArray(state.menu) ? state.menu : [];
+  menuItems.forEach(m => {
+    const c = getMenuCocktail(m); if (!c) return;
+    (c.recipe||[]).forEach(r => {
+      if (!r.ingredientId) return;
+      const qty = Number(r.qty||0) * Number(m.servings||0);
+      if (!ingUsage[r.ingredientId]) ingUsage[r.ingredientId] = {qty:0, unit: r.unit||'oz'};
+      ingUsage[r.ingredientId].qty += qty;
+    });
+  });
+  return ingUsage;
+}
+
+function renderShopping() {
+  const savedLists = Array.isArray(state.savedShoppingLists) ? state.savedShoppingLists : [];
+  const ingUsage = buildShoppingFromMenu();
+  const im = ingMap();
+  const totalCost = Object.entries(ingUsage).reduce((s,[id,u]) => { const i = im[id]; return s + (i ? u.qty * costPerUnit(i) : 0); }, 0);
+
+  const rows = Object.entries(ingUsage).map(([id, usage]) => {
+    const i = im[id]; if (!i) return '';
+    const cost = usage.qty * costPerUnit(i);
+    const unitAbbr = state.units.find(u=>u.id===usage.unit)?.abbr || usage.unit;
+    return `<div class="shop-row" onclick="showShoppingItemDetail('${id}',${usage.qty},'${usage.unit}')" style="cursor:pointer;">
+      <div class="shop-info">
+        <div class="shop-name">${esc(i.name)}</div>
+        <div class="shop-sub">${usage.qty.toFixed(2)} ${unitAbbr}${i.brand?' · '+esc(i.brand):''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="shop-cost">${money(cost)}</div>
+        <span style="color:var(--ink3);font-size:18px;">›</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const savedListsHtml = savedLists.length === 0 ? '' : `
+    <div class="section-header">Saved Shopping Lists</div>
+    <div style="padding:0 16px 8px;">
+      ${savedLists.map((sl,idx) => `
+        <div class="saved-menu-card" onclick="openSavedShoppingList(${idx})">
+          <div>
+            <div class="smc-name">${esc(sl.name||'Shopping List '+(idx+1))}</div>
+            <div class="smc-meta">${(sl.items||[]).length} items · ${sl.updatedAt||''}</div>
+          </div>
+          <button class="btn-icon red" style="flex-shrink:0" onclick="event.stopPropagation();deleteSavedShoppingList(${idx})">✕</button>
+        </div>`).join('')}
+    </div>`;
+
+  return `
+    <div class="page-header">
+      <div class="page-title">Shopping List</div>
+    </div>
+    ${Object.keys(ingUsage).length > 0 ? `
+      <div style="margin:0 16px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;box-shadow:var(--shadow-sm);">
+        <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">Est. Shopping Cost</div>
+        <div style="font-size:28px;font-weight:800;color:var(--amber);">${money(totalCost)}</div>
+      </div>
+      <div style="padding:0 16px 12px;display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="saveShoppingList()">💾 Save List</button>
+        <button class="btn btn-secondary btn-sm" onclick="shareShoppingList()" style="font-size:16px;padding:8px 12px;" title="Share">⬆️</button>
+      </div>
+      <div class="section-header">From Current Menu</div>
+      <div class="card-list">${rows}</div>
+    ` : `<div class="empty"><div class="empty-icon">🛒</div><div class="empty-title">No shopping list yet</div><div class="empty-sub">Build a menu first to generate your shopping list</div></div>`}
+    ${savedListsHtml}
+  `;
+}
+
+function saveShoppingList() {
+  const name = prompt('Name this shopping list:', 'Shopping ' + new Date().toLocaleDateString());
+  if (!name) return;
+  const ingUsage = buildShoppingFromMenu();
+  const im = ingMap();
+  const items = Object.entries(ingUsage).map(([id, usage]) => {
+    const i = im[id]; if (!i) return null;
+    return {ingredientId: id, name: i.name, qty: usage.qty, unit: usage.unit, cost: usage.qty * costPerUnit(i)};
+  }).filter(Boolean);
+  if (!Array.isArray(state.savedShoppingLists)) state.savedShoppingLists = [];
+  state.savedShoppingLists.push({id: uid(), name, items, updatedAt: new Date().toLocaleDateString()});
+  saveData(); render();
+  showSnack('Shopping list saved ✓');
+}
+
+function openSavedShoppingList(idx) {
+  const sl = state.savedShoppingLists[idx];
+  if (!sl) return;
+  const rows = (sl.items||[]).map(item => `
+    <div class="shop-row">
+      <div class="shop-info">
+        <div class="shop-name">${esc(item.name)}</div>
+        <div class="shop-sub">${Number(item.qty).toFixed(2)} ${item.unit||'oz'}</div>
+      </div>
+      <div class="shop-cost">${money(item.cost)}</div>
+    </div>`).join('');
+  const total = (sl.items||[]).reduce((s,i) => s+Number(i.cost||0), 0);
+  const el = document.getElementById('mainContent');
+  el.innerHTML = `
+    <div class="page-header">
+      <div><button class="btn btn-secondary btn-sm" onclick="render()">← Back</button></div>
+      <div class="page-title" style="font-size:17px;">${esc(sl.name)}</div>
+    </div>
+    <div style="margin:0 16px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">
+      <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;">Total Cost</div>
+      <div style="font-size:28px;font-weight:800;color:var(--amber);">${money(total)}</div>
+    </div>
+    <div style="padding:0 16px 12px;"><button class="btn btn-secondary btn-sm" onclick="shareSavedList(${idx})" style="font-size:16px;padding:8px 12px;" title="Share">⬆️</button></div>
+    <div class="card-list">${rows}</div>
+  `;
+}
+
+function deleteSavedShoppingList(idx) {
+  if (!confirm('Delete this shopping list?')) return;
+  state.savedShoppingLists.splice(idx, 1);
+  saveData(); render();
+}
+
+function exportShoppingCSV() {
+  const ingUsage = buildShoppingFromMenu();
+  const im = ingMap();
+  let csv = 'Ingredient,Brand,Quantity,Unit,Est. Cost\n';
+  Object.entries(ingUsage).forEach(([id, usage]) => {
+    const i = im[id]; if (!i) return;
+    const cost = usage.qty * costPerUnit(i);
+    const unitAbbr = state.units.find(u=>u.id===usage.unit)?.abbr || usage.unit;
+    csv += `"${i.name}","${i.brand||''}","${usage.qty.toFixed(2)}","${unitAbbr}","${cost.toFixed(2)}"\n`;
+  });
+  downloadCSV('shopping-list.csv', csv);
+}
+
+function exportSavedListCSV(idx) {
+  const sl = state.savedShoppingLists[idx]; if (!sl) return;
+  let csv = 'Ingredient,Quantity,Unit,Est. Cost\n';
+  (sl.items||[]).forEach(item => {
+    csv += `"${item.name}","${Number(item.qty).toFixed(2)}","${item.unit||'oz'}","${Number(item.cost||0).toFixed(2)}"\n`;
+  });
+  downloadCSV((sl.name||'shopping-list').replace(/[^a-z0-9]/gi,'-').toLowerCase()+'.csv', csv);
+}
+
+function downloadCSV(filename, content) {
+  const blob = new Blob([content], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ===== SETTINGS TAB =====
+function renderSettings() {
+  return `
+    <div class="page-header"><div class="page-title">Settings</div></div>
+    <div class="card-list">
+      <div class="card" onclick="exportBackup()">
+        <div class="card-body"><div class="card-name">Export Backup</div><div class="card-sub">Download all data as JSON</div></div>
+        <span class="chevron-right">›</span>
+      </div>
+      <div class="card" onclick="pushLocalToCloud()">
+        <div class="card-body"><div class="card-name">Force Sync to Cloud</div><div class="card-sub">Push local data to Supabase now</div></div>
+        <span class="chevron-right">›</span>
+      </div>
+      <div class="card" onclick="loadAndApplyCloud()">
+        <div class="card-body"><div class="card-name">Load from Cloud</div><div class="card-sub">Pull latest data from Supabase</div></div>
+        <span class="chevron-right">›</span>
+      </div>
+    </div>
+    <div style="padding:16px;color:var(--ink3);font-size:12px;text-align:center;">
+      Last saved: ${state.lastSaved || 'Never'}<br/>
+      ${state.ingredients.length} ingredients · ${state.cocktails.length} cocktails · ${(state.savedMenus||[]).length} saved menus
+    </div>
+  `;
+}
+
+async function pushLocalToCloud() {
+  if (!currentUser) return;
+  try {
+    setCloudStatus('☁ Syncing…', '');
+    await sbClient.from('app_data').upsert({id:currentUser.id,user_id:currentUser.id,data:state,updated_at:new Date().toISOString()},{onConflict:'id'});
+    setCloudStatus('☁ Synced', 'synced');
+    showSnack('Synced to cloud ✓');
+  } catch(e) { setCloudStatus('⚠ Sync failed', 'error'); showSnack('Sync failed'); }
+}
+async function loadAndApplyCloud() {
+  await loadFromCloud();
+  renderMetrics(); render();
+  showSnack('Loaded from cloud ✓');
+}
+// ===== SHARE / EXPORT FUNCTIONS =====
+async function iosShare(title, text, filename, content, mimeType) {
+  // Try native Web Share API first (triggers iOS share sheet)
+  if (navigator.share) {
+    try {
+      const file = new File([content], filename, {type: mimeType});
+      if (navigator.canShare && navigator.canShare({files:[file]})) {
+        await navigator.share({title, files:[file]});
+      } else {
+        await navigator.share({title, text});
+      }
+      return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  // Fallback: download
+  const blob = new Blob([content], {type: mimeType});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildRecipesText() {
+  const menuItems = Array.isArray(state.menu) ? state.menu : [];
+  const guests = state.menuSetup?.guests || 0;
+  const dpg = state.menuSetup?.drinksPerPerson || 3;
+  let txt = 'LEGEND BARTENDING — RECIPE EXPORT\n';
+  txt += `Event: ${guests} guests · ${dpg} drinks/person\n`;
+  txt += '='.repeat(40) + '\n\n';
+  menuItems.forEach(m => {
+    const c = getMenuCocktail(m); if (!c) return;
+    const qty = Number(m.servings||0);
+    txt += `${c.name.toUpperCase()}\n`;
+    txt += `Servings: ${qty} · Pour Cost: ${money(cocktailCost(c))}/drink\n`;
+    if (c.glass) txt += `Glass: ${c.glass}\n`;
+    if (c.served) txt += `Served: ${c.served}\n`;
+    if (c.build) txt += `Method: ${c.build}\n`;
+    if (c.garnish) txt += `Garnish: ${c.garnish}\n`;
+    txt += '\nINGREDIENTS:\n';
+    (c.recipe||[]).forEach(r => {
+      const i = ingMap()[r.ingredientId]; if (!i) return;
+      const unitAbbr = state.units.find(u=>u.id===r.unit)?.abbr || r.unit || 'oz';
+      txt += `  ${r.qty} ${unitAbbr} ${i.name}\n`;
+    });
+    if (c.notes) txt += `\nNotes: ${c.notes}\n`;
+    if (c.specialInstructions) txt += `Instructions: ${c.specialInstructions}\n`;
+    txt += '\n' + '-'.repeat(40) + '\n\n';
+  });
+  return txt;
+}
+
+function shareRecipes() {
+  if (state.menu.length === 0) { showSnack('No cocktails in menu'); return; }
+  const text = buildRecipesText();
+  iosShare('Legend Recipes', text, 'legend-recipes.txt', text, 'text/plain');
+}
+
+function buildShoppingText() {
+  const ingUsage = buildShoppingFromMenu();
+  const im = ingMap();
+  const total = Object.entries(ingUsage).reduce((s,[id,u]) => { const i=im[id]; return s+(i?u.qty*costPerUnit(i):0); }, 0);
+  let txt = 'LEGEND BARTENDING — SHOPPING LIST\n';
+  txt += `Generated: ${new Date().toLocaleDateString()}\n`;
+  txt += `Est. Total Cost: ${money(total)}\n`;
+  txt += '='.repeat(40) + '\n\n';
+  Object.entries(ingUsage).forEach(([id, usage]) => {
+    const i = im[id]; if (!i) return;
+    const cost = usage.qty * costPerUnit(i);
+    const unitAbbr = state.units.find(u=>u.id===usage.unit)?.abbr || usage.unit;
+    txt += `${i.name}\n  ${usage.qty.toFixed(2)} ${unitAbbr}${i.brand?' ('+i.brand+')':''}  —  ${money(cost)}\n`;
+  });
+  return txt;
+}
+
+function shareShoppingList() {
+  const ingUsage = buildShoppingFromMenu();
+  if (Object.keys(ingUsage).length === 0) { showSnack('Shopping list is empty'); return; }
+  const text = buildShoppingText();
+  // Also build CSV for file sharing
+  const im = ingMap();
+  let csv = 'Ingredient,Brand,Quantity,Unit,Est. Cost\n';
+  Object.entries(ingUsage).forEach(([id,usage]) => {
+    const i=im[id]; if(!i) return;
+    const cost=usage.qty*costPerUnit(i);
+    const ua=state.units.find(u=>u.id===usage.unit)?.abbr||usage.unit;
+    csv+=`"${i.name}","${i.brand||''}","${usage.qty.toFixed(2)}","${ua}","${cost.toFixed(2)}"\n`;
+  });
+  iosShare('Shopping List', text, 'shopping-list.csv', csv, 'text/csv');
+}
+
+function shareSavedList(idx) {
+  const sl = state.savedShoppingLists[idx]; if (!sl) return;
+  let txt = `SHOPPING LIST: ${sl.name}\n${'='.repeat(40)}\n`;
+  let csv = 'Ingredient,Quantity,Unit,Est. Cost\n';
+  (sl.items||[]).forEach(item => {
+    txt += `${item.name}  —  ${Number(item.qty).toFixed(2)} ${item.unit||'oz'}  —  ${money(item.cost)}\n`;
+    csv += `"${item.name}","${Number(item.qty).toFixed(2)}","${item.unit||'oz'}","${Number(item.cost).toFixed(2)}"\n`;
+  });
+  iosShare(sl.name, txt, (sl.name||'list').replace(/[^a-z0-9]/gi,'-').toLowerCase()+'.csv', csv, 'text/csv');
+}
+
+function showShoppingItemDetail(id, qty, unit) {
+  const i = ingMap()[id]; if (!i) return;
+  const cpu = costPerUnit(i);
+  const totalCost = qty * cpu;
+  const unitAbbr = state.units.find(u=>u.id===unit)?.abbr || unit;
+  const buyUnit = i.purchaseLabel || (state.units.find(u=>u.id===i.unit)?.label) || i.unit || '—';
+  const pkgSize = i.packageSize || i.yieldQty;
+  const pkgCost = i.purchaseCost ?? i.packageCost ?? 0;
+  const bottlesNeeded = pkgSize > 0 ? Math.ceil(qty / pkgSize) : '—';
+  const usedIn = state.cocktails.filter(c => (c.recipe||[]).some(r => r.ingredientId === id));
+  const el = document.getElementById('mainContent');
+  el.innerHTML = `
+    <div style="background:var(--nav-bg);padding:20px 16px 24px;padding-top:calc(20px + env(safe-area-inset-top));">
+      <button class="btn btn-secondary btn-sm" onclick="setTab('shopping')" style="margin-bottom:14px;background:rgba(255,255,255,.12);border:none;color:white;">← Shopping List</button>
+      <div style="font-size:24px;font-weight:800;color:white;text-transform:capitalize;margin-bottom:4px;">${esc(i.name)}</div>
+      ${i.brand ? `<div style="font-size:14px;color:rgba(255,255,255,.55);">${esc(i.brand)}</div>` : ''}
+      ${i.category ? `<div style="display:inline-block;margin-top:8px;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;">${esc(i.category)}</div>` : ''}
+    </div>
+
+    <!-- KEY STATS ROW -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border);margin:0 0 16px;border-bottom:1px solid var(--border);">
+      <div style="background:var(--surface);padding:14px 12px;text-align:center;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:4px;">Need</div>
+        <div style="font-size:20px;font-weight:800;color:var(--blue);">${qty.toFixed(1)}</div>
+        <div style="font-size:11px;color:var(--ink3);">${unitAbbr}</div>
+      </div>
+      <div style="background:var(--surface);padding:14px 12px;text-align:center;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:4px;">Buy</div>
+        <div style="font-size:20px;font-weight:800;color:var(--teal);">${typeof bottlesNeeded === 'number' ? bottlesNeeded : '—'}</div>
+        <div style="font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(buyUnit)}</div>
+      </div>
+      <div style="background:var(--surface);padding:14px 12px;text-align:center;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:4px;">Est. Cost</div>
+        <div style="font-size:20px;font-weight:800;color:var(--amber);">${money(totalCost)}</div>
+        <div style="font-size:11px;color:var(--ink3);">${money(cpu)}/${esc(state.units.find(u=>u.id===(i.recipeUnit||i.unit))?.abbr||'oz')}</div>
+      </div>
+    </div>
+
+    <!-- DETAILS CARDS -->
+    <div style="padding:0 16px;display:flex;flex-direction:column;gap:10px;">
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+        <div style="padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);">Purchase Info</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+          <div style="padding:12px 14px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:3px;">Package Size</div>
+            <div style="font-size:15px;font-weight:700;color:var(--ink);">${pkgSize || '—'} ${esc(state.units.find(u=>u.id===i.unit)?.abbr||i.unit||'')}</div>
+          </div>
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:3px;">Package Cost</div>
+            <div style="font-size:15px;font-weight:700;color:var(--ink);">${money(pkgCost)}</div>
+          </div>
+          <div style="padding:12px 14px;border-right:1px solid var(--border);">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:3px;">Buy As</div>
+            <div style="font-size:15px;font-weight:700;color:var(--ink);text-transform:capitalize;">${esc(buyUnit)}</div>
+          </div>
+          <div style="padding:12px 14px;">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:3px;">ABV</div>
+            <div style="font-size:15px;font-weight:700;color:var(--green);">${i.abv ? i.abv+'%' : '—'}</div>
+          </div>
+        </div>
+      </div>
+
+      ${usedIn.length > 0 ? `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+        <div style="padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);">Used In ${usedIn.length} Cocktail${usedIn.length!==1?'s':''}</span>
+        </div>
+        ${usedIn.map((c,idx) => `
+          <div style="padding:12px 14px;${idx<usedIn.length-1?'border-bottom:1px solid var(--border);':''}display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:14px;font-weight:600;text-transform:capitalize;color:var(--ink);">${esc(c.name)}</span>
+            <span style="font-size:13px;color:var(--amber);font-weight:700;">${money(cocktailCost(c))}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+    </div>
+  `;
+}
+
+function exportBackup() {
+  const data = JSON.stringify({...state, exportedAt: new Date().toISOString()}, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'legend-backup.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
