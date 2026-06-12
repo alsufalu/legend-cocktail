@@ -2631,8 +2631,8 @@ function exportMenuPDF(){
       const ing = im[r.ingredientId]; if (!ing) return '';
       const unitAbbr = um[r.unit]?.abbr || r.unit || 'oz';
       return '<tr>'
-        + '<td style="padding:9px 12px 9px 0;font-size:15px;font-weight:600;color:#1d2b3a;white-space:nowrap;width:1%;padding-right:20px;">' + r.qty + ' ' + unitAbbr + '</td>'
-        + '<td style="padding:9px 0;font-size:15px;color:#1d2b3a;">' + esc(ing.name) + (ing.brand ? ' <span style="color:#8492a6;font-size:13px;">(' + esc(ing.brand) + ')</span>' : '') + '</td>'
+        + '<td style="padding:4px 12px 4px 0;font-size:11px;font-weight:600;color:#1d2b3a;white-space:nowrap;width:1%;padding-right:16px;">' + r.qty + ' ' + unitAbbr + '</td>'
+        + '<td style="padding:4px 0;font-size:11px;color:#1d2b3a;">' + esc(ing.name) + (ing.brand ? ' <span style="color:#8492a6;font-size:10px;">(' + esc(ing.brand) + ')</span>' : '') + '</td>'
         + '</tr>';
     }).join('');
 
@@ -2680,53 +2680,53 @@ function exportMenuPDF(){
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',-apple-system,sans-serif;background:#f0f2f5;color:#1d2b3a;-webkit-font-smoothing:antialiased}
-.wrap{max-width:760px;margin:0 auto;padding:40px 24px 100px}
-.hdr{text-align:center;margin-bottom:48px}
-.hdr-logo{display:inline-flex;align-items:center;gap:14px;margin-bottom:12px}
-.logo-mark{width:56px;height:56px;border-radius:14px;background:#c8922a;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:white}
-.brand{font-family:'Playfair Display',serif;font-size:30px;color:#1d2b3a}
-.menu-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#8492a6;margin-bottom:4px}
-.menu-name{font-family:'Playfair Display',serif;font-size:18px;color:#4a5568;margin-bottom:20px}
-.hdr-rule{height:3px;background:linear-gradient(to right,transparent,#c8922a,transparent);border:none;margin:0 auto 24px;max-width:340px}
-.stats{display:flex;justify-content:center;border:1px solid #e0e3e8;border-radius:12px;overflow:hidden;background:#fff;max-width:420px;margin:0 auto}
-.stat{flex:1;padding:14px 20px;text-align:center;border-right:1px solid #e0e3e8}
+.wrap{max-width:760px;margin:0 auto;padding:20px 18px 80px}
+.hdr{text-align:center;margin-bottom:20px}
+.hdr-logo{display:inline-flex;align-items:center;gap:8px;margin-bottom:6px}
+.logo-mark{width:32px;height:32px;border-radius:8px;background:#c8922a;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:white}
+.brand{font-family:'Playfair Display',serif;font-size:18px;color:#1d2b3a}
+.menu-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#8492a6;margin-bottom:2px}
+.menu-name{font-family:'Playfair Display',serif;font-size:13px;color:#4a5568;margin-bottom:10px}
+.hdr-rule{height:2px;background:linear-gradient(to right,transparent,#c8922a,transparent);border:none;margin:0 auto 12px;max-width:260px}
+.stats{display:flex;justify-content:center;border:1px solid #e0e3e8;border-radius:8px;overflow:hidden;background:#fff;max-width:340px;margin:0 auto}
+.stat{flex:1;padding:7px 12px;text-align:center;border-right:1px solid #e0e3e8}
 .stat:last-child{border-right:none}
-.stat-val{font-size:24px;font-weight:800;color:#1d2b3a}
+.stat-val{font-size:15px;font-weight:800;color:#1d2b3a}
 .stat-val.amber{color:#c8922a}
-.stat-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8492a6;margin-top:3px}
-.cocktail-card{background:#fff;border:1px solid #e0e3e8;border-radius:16px;padding:28px 30px;box-shadow:0 2px 16px rgba(0,0,0,.06)}
-.cocktail-header{margin-bottom:18px}
-.cocktail-name{font-family:'Playfair Display',serif;font-size:32px;color:#1d2b3a;margin-bottom:10px;line-height:1.2}
-.cocktail-badges{display:flex;flex-wrap:wrap;gap:7px}
-.badge{display:inline-block;padding:5px 13px;border-radius:20px;font-size:12px;font-weight:600}
+.stat-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8492a6;margin-top:2px}
+.cocktail-card{background:#fff;border:1px solid #e0e3e8;border-radius:10px;padding:13px 16px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.cocktail-header{margin-bottom:8px}
+.cocktail-name{font-family:'Playfair Display',serif;font-size:17px;color:#1d2b3a;margin-bottom:5px;line-height:1.2}
+.cocktail-badges{display:flex;flex-wrap:wrap;gap:4px}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
 .badge.cat{background:#f0f2f5;color:#4a5568}
 .badge.abv{background:#dcfce7;color:#16a34a}
 .badge.cost{background:#fef3c7;color:#c8922a}
 .badge.servings{background:#dbeafe;color:#1d4ed8}
-.details-row{display:flex;flex-wrap:wrap;gap:14px 28px;margin-bottom:20px;padding:16px;background:#f6f7f9;border-radius:10px}
-.detail{display:flex;flex-direction:column;gap:3px}
-.dlbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8492a6}
-.dval{font-size:14px;font-weight:600;color:#1d2b3a}
-.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#8492a6;margin-bottom:8px}
+.details-row{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:8px;padding:8px;background:#f6f7f9;border-radius:6px}
+.detail{display:flex;flex-direction:column;gap:1px}
+.dlbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8492a6}
+.dval{font-size:11px;font-weight:600;color:#1d2b3a}
+.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#8492a6;margin-bottom:4px}
 .ing-table{width:100%;border-collapse:collapse}
 .ing-table tr{border-bottom:1px solid #f0f2f5}
 .ing-table tr:last-child{border-bottom:none}
-.notes-section{margin-top:18px;padding-top:16px;border-top:1px solid #e0e3e8}
-.note{font-size:13px;color:#4a5568;line-height:1.65;margin-bottom:5px}
-.cocktail-sep{position:relative;margin:36px 0;text-align:center}
-.cocktail-sep::before{content:'';display:block;height:2px;background:linear-gradient(to right,transparent,#c8922a 15%,#c8922a 85%,transparent)}
-.cocktail-sep::after{content:'◆';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) translateY(-1px);background:#f0f2f5;padding:0 14px;color:#c8922a;font-size:13px}
-.footer{text-align:center;margin-top:48px;padding-top:24px;border-top:1px solid #e0e3e8;color:#8492a6;font-size:12px}
-.print-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e0e3e8;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -4px 20px rgba(0,0,0,.09);z-index:100}
-.print-hint{font-size:12px;color:#8492a6}
-.print-btn{background:#c8922a;color:#fff;border:none;padding:12px 28px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.notes-section{margin-top:8px;padding-top:7px;border-top:1px solid #e0e3e8}
+.note{font-size:11px;color:#4a5568;line-height:1.5;margin-bottom:3px}
+.cocktail-sep{position:relative;margin:14px 0;text-align:center}
+.cocktail-sep::before{content:'';display:block;height:1px;background:linear-gradient(to right,transparent,#c8922a 15%,#c8922a 85%,transparent)}
+.cocktail-sep::after{content:'◆';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) translateY(-1px);background:#f0f2f5;padding:0 10px;color:#c8922a;font-size:10px}
+.footer{text-align:center;margin-top:24px;padding-top:14px;border-top:1px solid #e0e3e8;color:#8492a6;font-size:10px}
+.print-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e0e3e8;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -4px 20px rgba(0,0,0,.09);z-index:100}
+.print-hint{font-size:11px;color:#8492a6}
+.print-btn{background:#c8922a;color:#fff;border:none;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 @media print{
   body{background:#fff}
   .print-bar{display:none}
-  .wrap{padding:16px;max-width:none}
+  .wrap{padding:10px;max-width:none}
   .cocktail-card{box-shadow:none;page-break-inside:avoid}
   .cocktail-sep{page-break-after:avoid}
-  .hdr{margin-bottom:32px}
+  .hdr{margin-bottom:14px}
 }
 </style>
 </head>
