@@ -829,7 +829,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">L</div>
     <div>
       <div class="topbar-title">Legend Bartending</div>
-      <div class="topbar-subtitle">Cocktail Cost &amp; Menu Builder · v1.1</div>
+      <div class="topbar-subtitle">Cocktail Cost &amp; Menu Builder · v1.2</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1917,7 +1917,11 @@ function renderRecipes(q){
         <div style="position:relative;"><div class="list" style="max-height:${recipeExportMode?'calc(70vh - 52px)':'70vh'};overflow-y:auto;padding-right:4px">${list}</div>${exportBar}</div>
       </div>
       <div>
-        <div class="panelHead"><h2>Recipe Builder</h2><div style="display:flex;align-items:center;gap:12px">
+        <div class="panelHead"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2>Recipe Builder</h2>
+          <button class="secondary" onclick="addRecipeLine()" style="font-size:12px;padding:5px 11px">+ Add Line</button>
+          <button class="btn-ghost" onclick="duplicateCocktail('${c.id}')" style="font-size:12px;padding:5px 11px">⧉ Duplicate</button>
+          <button class="delete" onclick="deleteCocktail('${c.id}')" style="font-size:12px;padding:5px 8px">Delete</button>
+        </div><div style="display:flex;align-items:center;gap:12px">
           ${(()=>{const abv=cocktailAbv(c);if(!abv)return '';if(!abv.hasAlcohol)return '<span style="font-size:12px;color:var(--ink3);background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 10px">Non-Alcoholic</span>';return '<span style="font-size:12px;font-weight:700;color:var(--teal);background:#f0fdfb;border:1px solid #b2e4df;border-radius:999px;padding:3px 10px" title="Pre-dilution: '+abv.preAbv+'% · Post-dilution ('+c.build+'): '+abv.postAbv+'%">~'+abv.postAbv+'% ABV</span>';})()}
           <div class="rightCost">${money(cocktailCost(c))}</div>
         </div></div>
@@ -1956,11 +1960,6 @@ function renderRecipes(q){
         </div>
         <div class="recipeHeader"><div>Ingredient</div><div>Qty</div><div>Unit</div><div>Cost</div><div></div></div>
         <div style="max-height:35vh;overflow-y:auto;padding-right:4px">${rows||''}</div>
-        <div style="margin-top:10px">
-        <button class="secondary" onclick="addRecipeLine()">+ Add Recipe Line</button>
-        <button class="btn-ghost" onclick="duplicateCocktail('${c.id}')" style="margin-left:10px">⧉ Duplicate Cocktail</button>
-        <button class="delete" onclick="deleteCocktail('${c.id}')" style="margin-left:6px">Delete Cocktail</button>
-        </div>
       </div>
     </div>`
   );
