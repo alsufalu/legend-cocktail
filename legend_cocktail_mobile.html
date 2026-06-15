@@ -191,7 +191,7 @@
     .inner-tab.active { background: var(--blue); color: white; }
 
     /* ===== AUTOCOMPLETE ===== */
-    .autocomplete-list { position: absolute; left: 0; right: 0; top: 100%; z-index: 100; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; max-height: 200px; overflow-y: auto; box-shadow: var(--shadow); margin-top: 4px; }
+    .autocomplete-list { position: absolute; left: 0; right: 0; top: 100%; z-index: 500; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; max-height: 200px; overflow-y: auto; box-shadow: var(--shadow); margin-top: 4px; }
     .autocomplete-list.hidden { display: none; }
     .autocomplete-item { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 15px;  }
     .autocomplete-item:last-child { border-bottom: none; }
@@ -291,7 +291,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">L</div>
-      <div class="topbar-title">Legend Bartending</div>
+      <div class="topbar-title">Legend Bartending <span style="font-size:10px;font-weight:400;opacity:.6;">v1.1</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1075,6 +1075,21 @@ function filterRecipeIng(idx, val) {
   if (!matches.length || !q) { list.classList.add('hidden'); return; }
   list.innerHTML = matches.map(i => `<div class="autocomplete-item" onmousedown="selectRecipeIng(${idx},'${i.id}')">${esc(i.name)}${i.brand?' — '+esc(i.brand):''}</div>`).join('');
   list.classList.remove('hidden');
+  // Flip above the input if not enough room below
+  const input = list.parentElement ? list.parentElement.querySelector('input') : null;
+  if (input) {
+    const rect = input.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const dropH = Math.min(200, list.scrollHeight);
+    if (spaceBelow < dropH && spaceAbove > spaceBelow) {
+      list.style.top = 'auto'; list.style.bottom = '100%';
+      list.style.marginTop = '0'; list.style.marginBottom = '4px';
+    } else {
+      list.style.top = '100%'; list.style.bottom = 'auto';
+      list.style.marginTop = '4px'; list.style.marginBottom = '0';
+    }
+  }
 }
 function hideRecipeIng(idx) { const l = document.getElementById('recipeIngList'+idx); if(l) l.classList.add('hidden'); }
 function selectRecipeIng(idx, ingId) {
