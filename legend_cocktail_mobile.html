@@ -291,7 +291,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">L</div>
-      <div class="topbar-title">Legend Bartending <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v1.4</span></div>
+      <div class="topbar-title">Legend Bartending <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v1.5</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1921,167 +1921,118 @@ function exportBackup() {
   URL.revokeObjectURL(url);
 }
 
-// ===== BARCODE SCANNER =====
+// ===== BARCODE SCANNER v2 — single bottom sheet, iOS PWA safe =====
 let _bsScanTarget = null;
-let _bsZxing = null; // ZXing reader instance for live camera
 
 function openBarcodeScanner(target) {
   _bsScanTarget = target;
-  const libs = [];
-  if (typeof BarcodeDetector !== 'undefined') libs.push('NativeDetector');
-  if (typeof ZXing !== 'undefined') libs.push('ZXing');
-  document.getElementById('barcodeScanStatus').textContent = libs.length ? '✓ ' + libs.join(' + ') + ' ready' : 'Tap "Take Photo" or type barcode below';
-  document.getElementById('barcodeScanResult').innerHTML = '';
-  document.getElementById('bsFileInput').value = '';
-  document.getElementById('barcode-reader-box').style.display = 'none';
-  document.getElementById('bsLiveScanBtn').style.display = '';
-  document.getElementById('barcodeScanOverlay').style.display = 'flex';
+  document.getElementById('bsScannerSheet').style.display = 'block';
+  document.getElementById('bsSheetStatus').textContent = '';
+  document.getElementById('bsSheetBarcode').value = '';
+  try { document.getElementById('bsFileInput2').value = ''; } catch(e) {}
+}
+
+function closeBarcodeScanner() {
+  document.getElementById('bsScannerSheet').style.display = 'none';
+  document.getElementById('bsVintageSheet').style.display = 'none';
 }
 
 async function bsHandlePhoto(input) {
   const file = input.files[0];
   if (!file) return;
-  input.value = '';
-  const st = document.getElementById('barcodeScanStatus');
-  st.textContent = 'Processing photo…';
+  try { input.value = ''; } catch(e) {}
+  const st = document.getElementById('bsSheetStatus');
+  st.textContent = '⏳ Reading photo…';
+  let decoded = null;
+
   try {
-    // Step 1: load original image
-    const origUrl = URL.createObjectURL(file);
-    const img = new Image();
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = origUrl; });
-    URL.revokeObjectURL(origUrl);
-
-    // Step 2: draw through canvas — this applies EXIF rotation and resizes
-    // (iOS stores photos sideways; canvas drawImage corrects orientation in Safari 15+)
-    const MAX = 1200;
-    let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-    if (w > MAX || h > MAX) {
-      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-      else { w = Math.round(w * MAX / h); h = MAX; }
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
-    // Step 3: try to decode
-    let decoded = null;
-
-    // Method A: native BarcodeDetector — works on iOS 17+, Chrome/Android
+    // Method 1: BarcodeDetector on ImageBitmap
+    // createImageBitmap on Safari 15+ auto-applies EXIF rotation — critical for iPhone photos
     if (typeof BarcodeDetector !== 'undefined') {
       try {
-        const bd = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code'] });
-        const results = await bd.detect(canvas);
-        if (results.length > 0) decoded = results[0].rawValue;
-      } catch(e) {
-        // If formats not supported, try with no format filter
+        const bitmap = await createImageBitmap(file);
+        let bd;
         try {
-          const bd2 = new BarcodeDetector();
-          const results2 = await bd2.detect(canvas);
-          if (results2.length > 0) decoded = results2[0].rawValue;
-        } catch(e2) {}
-      }
+          const fmts = await BarcodeDetector.getSupportedFormats();
+          bd = new BarcodeDetector({ formats: fmts });
+        } catch(e2) {
+          bd = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'] });
+        }
+        const results = await bd.detect(bitmap);
+        if (results.length) decoded = results[0].rawValue;
+        try { bitmap.close(); } catch(e2) {}
+      } catch(e) {}
     }
 
-    // Method B: ZXing on resized canvas image (fallback)
+    // Method 2: ZXing on EXIF-corrected canvas (createImageBitmap handles rotation)
     if (!decoded && typeof ZXing !== 'undefined') {
       try {
+        const bitmap = await createImageBitmap(file);
+        const MAX = 1500;
+        let w = bitmap.width, h = bitmap.height;
+        if (w > MAX || h > MAX) {
+          if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+        try { bitmap.close(); } catch(e2) {}
         const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-        const ri = new Image();
-        await new Promise((res, rej) => { ri.onload = res; ri.onerror = rej; ri.src = dataUrl; });
-        const reader = new ZXing.BrowserMultiFormatReader();
-        const result = await reader.decodeFromImageElement(ri);
-        decoded = result.getText ? result.getText() : (result.text || '');
-      } catch(e) { /* NotFoundException = no barcode found */ }
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
+        const result = await new ZXing.BrowserMultiFormatReader().decodeFromImageElement(img);
+        decoded = result.getText ? result.getText() : String(result.text || '');
+      } catch(e) {}
+    }
+
+    // Method 3: ZXing on raw file URL at multiple scales (last resort)
+    if (!decoded && typeof ZXing !== 'undefined') {
+      try {
+        const url = URL.createObjectURL(file);
+        const imgRaw = new Image();
+        await new Promise((res, rej) => { imgRaw.onload = res; imgRaw.onerror = rej; imgRaw.src = url; });
+        URL.revokeObjectURL(url);
+        for (const MAX of [800, 1200, 1600]) {
+          if (decoded) break;
+          let w = imgRaw.naturalWidth, h = imgRaw.naturalHeight;
+          if (w > MAX || h > MAX) {
+            if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(imgRaw, 0, 0, w, h);
+          const ri = new Image();
+          const du = c.toDataURL('image/jpeg', 0.92);
+          await new Promise((res, rej) => { ri.onload = res; ri.onerror = rej; ri.src = du; });
+          try {
+            const result2 = await new ZXing.BrowserMultiFormatReader().decodeFromImageElement(ri);
+            decoded = result2.getText ? result2.getText() : String(result2.text || '');
+          } catch(e2) {}
+        }
+      } catch(e) {}
     }
 
     if (decoded) {
-      st.textContent = '✓ Scanned: ' + decoded + ' — Looking up…';
-      await bsLookup(decoded);
+      const clean = decoded.replace(/[^0-9]/g, '') || decoded;
+      st.textContent = '✓ Scanned: ' + clean + ' — looking up…';
+      await bsLookup(clean);
     } else {
-      st.textContent = '⚠ Could not read barcode from photo. Tap "Type Barcode Number" below to enter it manually.';
+      st.textContent = '⚠ Barcode not found in photo. Try better lighting, get closer, or enter the number below.';
     }
   } catch(e) {
-    st.textContent = '⚠ Photo error. Tap "Type Barcode Number" to enter it manually.';
+    st.textContent = '⚠ Could not process photo. Enter the barcode number below.';
   }
 }
 
-function bsTryLiveCamera() {
-  const box = document.getElementById('barcode-reader-box');
-  const liveBtn = document.getElementById('bsLiveScanBtn');
-  const st = document.getElementById('barcodeScanStatus');
-  box.style.display = 'block';
-  liveBtn.style.display = 'none';
-  st.textContent = 'Starting camera…';
-  if (_bsZxing) { try { _bsZxing.reset(); } catch(e) {} _bsZxing = null; }
-  if (typeof ZXing === 'undefined') { st.textContent = '⚠ Library not loaded.'; return; }
-  box.innerHTML = '<video id="bsVideo" style="width:100%;border-radius:8px;" muted playsinline autoplay></video>';
-  const _camTimeout = setTimeout(() => {
-    if (st.textContent === 'Starting camera…') {
-      st.textContent = '⚠ Live camera unavailable on this device. Use "Take Photo" instead.';
-      box.style.display = 'none'; liveBtn.style.display = '';
-    }
-  }, 8000);
-  _bsZxing = new ZXing.BrowserMultiFormatReader();
-  _bsZxing.decodeFromVideoDevice(undefined, 'bsVideo', (result, err) => {
-    if (result) {
-      clearTimeout(_camTimeout);
-      const text = result.getText ? result.getText() : (result.text || '');
-      if (text) { _bsZxing.reset(); _bsZxing = null; bsOnRead(text); }
-    } else if (err && err.name !== 'NotFoundException') {
-      clearTimeout(_camTimeout);
-      st.textContent = '⚠ Camera error. Use "Take Photo" instead.';
-      box.style.display = 'none'; liveBtn.style.display = '';
-    }
-  }).then(() => { clearTimeout(_camTimeout); st.textContent = 'Scanning — hold barcode steady…'; })
-    .catch(e => { clearTimeout(_camTimeout); st.textContent = '⚠ Camera error. Use "Take Photo" instead.'; box.style.display = 'none'; liveBtn.style.display = ''; });
-}
-
-function closeBarcodeScanner() {
-  document.getElementById('barcode-reader-box').style.display = 'none';
-  if (_bsZxing) { try { _bsZxing.reset(); } catch(e) {} _bsZxing = null; }
-  document.getElementById('barcodeScanOverlay').style.display = 'none';
-  document.getElementById('bsKeypadSheet').style.display = 'none';
-  document.getElementById('bsVintageSheet').style.display = 'none';
-}
-
-async function bsOnRead(barcode) {
-  document.getElementById('barcodeScanStatus').textContent = '✓ Scanned: ' + barcode + ' — Looking up…';
-  await bsLookup(barcode);
-}
-
-function bsTypeManual() {
-  // Hide the main overlay, show the keypad bottom sheet
-  document.getElementById('barcodeScanOverlay').style.display = 'none';
-  const sheet = document.getElementById('bsKeypadSheet');
-  sheet.style.display = 'block';
-  const inp = document.getElementById('bsKeypadInput');
-  inp.value = '';
-  // Delay focus so iOS has time to render the sheet before showing keyboard
-  setTimeout(() => { try { inp.focus(); } catch(e) {} }, 150);
-}
-
-function bsKeypadGo() {
-  const barcode = (document.getElementById('bsKeypadInput').value || '').trim().replace(/\D/g, '');
-  if (!barcode) return;
-  document.getElementById('bsKeypadSheet').style.display = 'none';
-  document.getElementById('barcodeScanOverlay').style.display = 'flex';
-  document.getElementById('barcodeScanStatus').textContent = 'Looking up ' + barcode + '…';
+function bsSheetGo() {
+  const barcode = (document.getElementById('bsSheetBarcode').value || '').trim().replace(/\D/g, '');
+  if (!barcode) { try { document.getElementById('bsSheetBarcode').focus(); } catch(e) {} return; }
+  document.getElementById('bsSheetStatus').textContent = 'Looking up ' + barcode + '…';
   bsLookup(barcode).catch(() => {
-    document.getElementById('barcodeScanStatus').textContent = '⚠ Lookup error. Try again.';
+    document.getElementById('bsSheetStatus').textContent = '⚠ Lookup error. Check your connection and try again.';
   });
-}
-
-function bsKeypadCancel() {
-  document.getElementById('bsKeypadSheet').style.display = 'none';
-  document.getElementById('barcodeScanOverlay').style.display = 'flex';
-}
-
-async function bsManualLookup() {
-  const barcode = (document.getElementById('barcodeManualInput') ? (document.getElementById('barcodeManualInput').value || '') : '').trim();
-  if (!barcode) { bsTypeManual(); return; }
-  if (_bsZxing) { try { _bsZxing.reset(); } catch(e) {} _bsZxing = null; }
-  document.getElementById('barcodeScanStatus').textContent = 'Looking up ' + barcode + '…';
-  try { await bsLookup(barcode); } catch(e) { document.getElementById('barcodeScanStatus').textContent = '⚠ Lookup error. Try again.'; }
 }
 
 function bsFetch(url, timeoutMs) {
@@ -2094,7 +2045,7 @@ function bsFinishLookup() {
   // After a successful wine lookup: if no vintage detected, show vintage picker
   if (_bsScanTarget === 'wine-draft' && wineDraft && !wineDraft.vintage) {
     setTimeout(() => {
-      document.getElementById('barcodeScanOverlay').style.display = 'none';
+      document.getElementById('bsScannerSheet').style.display = 'none';
       bsShowVintagePicker();
     }, 700);
   } else {
@@ -2132,7 +2083,7 @@ function bsVintageSkip() {
 }
 
 async function bsLookup(barcode) {
-  const st = document.getElementById('barcodeScanStatus');
+  const st = document.getElementById('bsSheetStatus');
   // 1. Open Food Facts
   try {
     st.textContent = 'Searching database 1/4…';
@@ -2466,35 +2417,30 @@ function bsApply(barcode, p) {
 
 </script>
 
-<!-- BARCODE SCANNER OVERLAY -->
-<div id="barcodeScanOverlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:16px;padding:22px 20px 18px;width:min(94vw,400px);text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.4)">
-    <div style="font-size:16px;font-weight:700;color:#1d2b3a;margin-bottom:2px">📷 Barcode Lookup</div>
-    <div style="font-size:12px;color:#8492a6;margin-bottom:14px">Take a photo of the barcode on the bottle</div>
-    <!-- Primary: native camera photo — uses label+for (more reliable than button.click() on iOS) -->
-    <input type="file" id="bsFileInput" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" onchange="bsHandlePhoto(this)">
-    <label for="bsFileInput" style="display:block;width:100%;padding:14px;background:#0070f2;color:#fff;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px;box-sizing:border-box;text-align:center;">📷 Take Photo of Barcode</label>
-    <!-- Live scanner (hidden until activated) -->
-    <div id="barcode-reader-box" style="width:100%;border-radius:8px;overflow:hidden;background:#111;display:none;"></div>
-    <button id="bsLiveScanBtn" onclick="bsTryLiveCamera()" style="width:100%;padding:9px;background:#f0f2f5;border:none;border-radius:8px;font-size:13px;font-weight:600;color:#4a5568;cursor:pointer;font-family:inherit;margin-bottom:8px;">🎥 Try Live Camera Instead</button>
-    <div id="barcodeScanStatus" style="font-size:13px;color:#1d2b3a;font-weight:500;min-height:20px;line-height:1.5;word-break:break-word;margin-bottom:8px;padding:6px 0;"></div>
-    <div id="barcodeScanResult"></div>
-    <button onclick="bsTypeManual()" style="width:100%;padding:12px;background:#f7f8fa;border:1.5px solid #c8cdd6;border-radius:8px;font-size:14px;font-weight:600;color:#1d2b3a;cursor:pointer;font-family:inherit;margin-bottom:8px;text-align:center;">⌨️ Type Barcode Number</button>
-    <button onclick="closeBarcodeScanner()" style="width:100%;padding:12px;background:#f0f2f5;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;color:#4a5568;font-family:inherit;">Cancel</button>
+<!-- BARCODE SCANNER SHEET v2 — single bottom sheet, iOS PWA safe -->
+<div id="bsScannerSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:10000;background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 32px;box-shadow:0 -6px 32px rgba(0,0,0,.25);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+    <div style="font-size:15px;font-weight:700;color:#1d2b3a;">📷 Barcode Lookup</div>
+    <button onclick="closeBarcodeScanner()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8492a6;padding:0 4px;line-height:1;">×</button>
   </div>
-</div>
-
-<!-- BARCODE KEYPAD SHEET — separate from overlay so iOS keyboard works -->
-<div id="bsKeypadSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:10001;background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 32px;box-shadow:0 -6px 32px rgba(0,0,0,.25);">
-  <div style="font-size:15px;font-weight:700;color:#1d2b3a;margin-bottom:4px;">Enter Barcode Number</div>
-  <div style="font-size:12px;color:#8492a6;margin-bottom:14px;">Type the numbers printed below the barcode on the bottle</div>
+  <div style="font-size:12px;color:#8492a6;margin-bottom:14px;">Take a photo of the barcode or enter the number below</div>
+  <!-- Camera — label+for is the reliable iOS PWA trigger; input hidden off-screen (not left:-9999px) -->
+  <input type="file" id="bsFileInput2" accept="image/*" capture="environment"
+         style="position:absolute;top:-200px;left:-200px;width:1px;height:1px;opacity:0;"
+         onchange="bsHandlePhoto(this)">
+  <label for="bsFileInput2" style="display:block;width:100%;padding:14px;background:#0070f2;color:#fff;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:12px;box-sizing:border-box;text-align:center;">📷 Take Photo of Barcode</label>
+  <!-- Status line -->
+  <div id="bsSheetStatus" style="font-size:13px;color:#1d2b3a;font-weight:500;min-height:18px;line-height:1.5;word-break:break-word;margin-bottom:12px;padding:2px 0;"></div>
+  <!-- Manual entry inline -->
+  <div style="font-size:12px;color:#8492a6;margin-bottom:6px;font-weight:500;">Or type the barcode number:</div>
   <div style="display:flex;gap:8px;margin-bottom:10px;">
-    <input id="bsKeypadInput" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 098709088504"
-           style="flex:1;padding:13px 12px;border:2px solid #0070f2;border-radius:10px;font-size:16px;font-family:inherit;outline:none;-webkit-appearance:none;"
-           onkeydown="if(event.key==='Enter'){event.preventDefault();bsKeypadGo();}">
-    <button onclick="bsKeypadGo()" style="padding:13px 18px;background:#0070f2;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Look Up</button>
+    <input id="bsSheetBarcode" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 098709088504"
+           style="flex:1;padding:13px 12px;border:2px solid #c8cdd6;border-radius:10px;font-size:16px;font-family:inherit;outline:none;-webkit-appearance:none;"
+           onfocus="this.style.borderColor='#0070f2'" onblur="this.style.borderColor='#c8cdd6'"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();bsSheetGo();}">
+    <button onclick="bsSheetGo()" style="padding:13px 18px;background:#0070f2;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Go</button>
   </div>
-  <button onclick="bsKeypadCancel()" style="width:100%;padding:12px;background:#f0f2f5;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;font-family:inherit;">← Back to Scanner</button>
+  <button onclick="closeBarcodeScanner()" style="width:100%;padding:11px;background:#f0f2f5;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;font-family:inherit;">Cancel</button>
 </div>
 <!-- VINTAGE PICKER SHEET -->
 <div id="bsVintageSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:10002;background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 32px;box-shadow:0 -6px 32px rgba(0,0,0,.25);">
