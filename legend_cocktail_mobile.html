@@ -1203,10 +1203,11 @@ function renderMenuSetup() {
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px;">Saved Menus</div>
         ${savedMenus.map((sm,idx) => `
           <div class="saved-menu-card" onclick="loadSavedMenu(${idx})">
-            <div>
+            <div style="flex:1;min-width:0;">
               <div class="smc-name">${esc(sm.name||'Menu '+(idx+1))}</div>
               <div class="smc-meta">${(sm.items||[]).length} cocktails · ${sm.updatedAt||''}</div>
             </div>
+            <button class="btn-icon" style="flex-shrink:0;color:var(--ink3);" title="Duplicate" onclick="event.stopPropagation();duplicateSavedMenu(${idx})">⧉</button>
             <button class="btn-icon red" style="flex-shrink:0" onclick="event.stopPropagation();deleteSavedMenu(${idx})">✕</button>
           </div>`).join('')}
       ` : ''}
@@ -1338,6 +1339,20 @@ function deleteSavedMenu(idx) {
   if (!confirm('Delete this saved menu?')) return;
   state.savedMenus.splice(idx, 1);
   saveData(); render();
+}
+function duplicateSavedMenu(idx) {
+  const src = state.savedMenus[idx];
+  if (!src) return;
+  const name = prompt('Name for the duplicate menu:', 'Copy of ' + (src.name || 'Menu'));
+  if (!name) return;
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = uid();
+  copy.name = name;
+  copy.createdAt = new Date().toLocaleDateString();
+  copy.updatedAt = new Date().toLocaleDateString();
+  state.savedMenus.splice(idx + 1, 0, copy); // insert right after original
+  saveData(); render();
+  showSnack('Menu duplicated ✓');
 }
 function saveCurrentMenu() {
   const name = prompt('Name this menu:', 'Event Menu ' + new Date().toLocaleDateString());
@@ -1929,114 +1944,101 @@ let _bsScanTarget = null;
 
 function openBarcodeScanner(target) {
   _bsScanTarget = target;
-  document.getElementById('bsScannerSheet').style.display = 'block';
   document.getElementById('bsSheetStatus').textContent = '';
   document.getElementById('bsSheetBarcode').value = '';
-  try { document.getElementById('bsFileInput2').value = ''; } catch(e) {}
+  document.getElementById('bsLiveWrap').style.display = 'none';
+  document.getElementById('bsScanButtons').style.display = 'flex';
+  document.getElementById('bsScannerSheet').style.display = 'block';
 }
 
 function closeBarcodeScanner() {
+  bsStopLive();
   document.getElementById('bsScannerSheet').style.display = 'none';
   document.getElementById('bsVintageSheet').style.display = 'none';
 }
+
+// ---- Photo scan via html5-qrcode ----
+let _h5qrFile = null;
 
 async function bsHandlePhoto(input) {
   const file = input.files[0];
   if (!file) return;
   try { input.value = ''; } catch(e) {}
   const st = document.getElementById('bsSheetStatus');
-  st.textContent = '⏳ Processing photo…';
+  st.textContent = '⏳ Reading barcode…';
   let decoded = null;
 
-  // --- helpers ---
-  // Draw source onto a canvas, optionally rotated
-  function makeCanvas(source, w, h, deg) {
-    const c = document.createElement('canvas');
-    const rotated = (deg === 90 || deg === 270);
-    c.width  = rotated ? h : w;
-    c.height = rotated ? w : h;
-    const ctx = c.getContext('2d');
-    ctx.translate(c.width / 2, c.height / 2);
-    ctx.rotate(deg * Math.PI / 180);
-    ctx.drawImage(source, -w / 2, -h / 2, w, h);
-    return c;
+  // Method 1: html5-qrcode scanFile — handles EXIF, rotation, all major formats
+  if (typeof Html5Qrcode !== 'undefined') {
+    try {
+      if (!_h5qrFile) _h5qrFile = new Html5Qrcode('_bsQrDiv');
+      decoded = await _h5qrFile.scanFile(file, /* showImage */ false);
+    } catch(e) { decoded = null; }
   }
 
-  // Try native BarcodeDetector on any drawable source
-  async function tryBD(source) {
-    if (typeof BarcodeDetector === 'undefined') return null;
+  // Method 2: native BarcodeDetector (iOS 17+) as fallback
+  if (!decoded && typeof BarcodeDetector !== 'undefined') {
     try {
+      const bitmap = await createImageBitmap(file);
       let fmts;
-      try { fmts = await BarcodeDetector.getSupportedFormats(); } catch(e) { fmts = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']; }
-      const results = await new BarcodeDetector({ formats: fmts }).detect(source);
-      return results.length ? results[0].rawValue : null;
-    } catch(e) { return null; }
+      try { fmts = await BarcodeDetector.getSupportedFormats(); } catch(e2) { fmts = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']; }
+      const results = await new BarcodeDetector({ formats: fmts }).detect(bitmap);
+      if (results.length) decoded = results[0].rawValue;
+      try { bitmap.close(); } catch(e2) {}
+    } catch(e) {}
   }
 
-  // Try ZXing (with TRY_HARDER) on a canvas element
-  async function tryZX(canvas) {
-    if (typeof ZXing === 'undefined') return null;
-    try {
-      // TRY_HARDER makes ZXing try more decode strategies — big difference for real photos
-      const hints = new Map([[ZXing.DecodeHintType.TRY_HARDER, true]]);
-      const reader = new ZXing.BrowserMultiFormatReader(hints);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      const img = new Image();
-      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
-      const result = await reader.decodeFromImageElement(img);
-      return result.getText ? result.getText() : String(result.text || '');
-    } catch(e) { return null; }
+  if (decoded) {
+    const clean = decoded.replace(/[^0-9]/g, '') || decoded;
+    st.textContent = '✓ Scanned: ' + clean + ' — looking up…';
+    await bsLookup(clean);
+  } else {
+    st.textContent = '⚠ Could not read barcode from photo. Try the live camera, or enter the number below.';
   }
+}
 
-  // Try both decoders on every 90° rotation of a source image
-  async function tryAllRotations(source, w, h) {
-    for (const deg of [0, 90, 270, 180]) {
-      const c = makeCanvas(source, w, h, deg);
-      const r = (await tryBD(c)) || (await tryZX(c));
-      if (r) return r;
-    }
-    return null;
-  }
+// ---- Live camera scan via html5-qrcode ----
+let _h5qrLive = null;
 
-  // Scale dimensions down so neither side exceeds MAX
-  function scaleDims(w, h, MAX) {
-    if (w <= MAX && h <= MAX) return [w, h];
-    return w >= h ? [MAX, Math.round(h * MAX / w)] : [Math.round(w * MAX / h), MAX];
+async function bsStartLive() {
+  if (typeof Html5Qrcode === 'undefined') {
+    document.getElementById('bsSheetStatus').textContent = '⚠ Scanner library not loaded yet. Try again in a moment.';
+    return;
   }
+  const wrap = document.getElementById('bsLiveWrap');
+  const target = document.getElementById('bsLiveTarget');
+  target.innerHTML = '';
+  wrap.style.display = 'block';
+  document.getElementById('bsScanButtons').style.display = 'none';
+  document.getElementById('bsSheetStatus').textContent = 'Starting camera…';
 
   try {
-    // --- Pass 1: createImageBitmap (Safari 15+ applies EXIF automatically) ---
-    let bitmap = null;
-    try { bitmap = await createImageBitmap(file); } catch(e) {}
-
-    if (bitmap) {
-      const [w, h] = scaleDims(bitmap.width, bitmap.height, 1400);
-      decoded = await tryAllRotations(bitmap, w, h);
-      try { bitmap.close(); } catch(e) {}
-    }
-
-    // --- Pass 2: raw URL fallback (older iOS / if createImageBitmap failed) ---
-    if (!decoded) {
-      try {
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-        URL.revokeObjectURL(url);
-        const [w, h] = scaleDims(img.naturalWidth, img.naturalHeight, 1400);
-        decoded = await tryAllRotations(img, w, h);
-      } catch(e) {}
-    }
-
-    if (decoded) {
-      const clean = decoded.replace(/[^0-9]/g, '') || decoded;
-      st.textContent = '✓ Scanned: ' + clean + ' — looking up…';
-      await bsLookup(clean);
-    } else {
-      st.textContent = '⚠ No barcode found. Make sure the barcode fills most of the frame and is well-lit. Or enter the number below.';
-    }
+    if (_h5qrLive) { try { await _h5qrLive.stop(); } catch(e) {} _h5qrLive = null; }
+    _h5qrLive = new Html5Qrcode('bsLiveTarget');
+    await _h5qrLive.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 240, height: 120 }, aspectRatio: 2.0 },
+      async (text) => {
+        const clean = text.replace(/[^0-9]/g, '') || text;
+        await bsStopLive();
+        document.getElementById('bsSheetStatus').textContent = '✓ Scanned: ' + clean + ' — looking up…';
+        bsLookup(clean);
+      },
+      () => {} // ignore per-frame errors
+    );
+    document.getElementById('bsSheetStatus').textContent = 'Hold barcode steady in the box…';
   } catch(e) {
-    st.textContent = '⚠ Could not read photo. Enter the barcode number below.';
+    await bsStopLive();
+    document.getElementById('bsSheetStatus').textContent = '⚠ Camera unavailable — ' + (e.message || 'permission denied') + '. Use "Take Photo" instead.';
   }
+}
+
+async function bsStopLive() {
+  try { if (_h5qrLive) { await _h5qrLive.stop(); _h5qrLive = null; } } catch(e) { _h5qrLive = null; }
+  const wrap = document.getElementById('bsLiveWrap');
+  if (wrap) { wrap.style.display = 'none'; const t = document.getElementById('bsLiveTarget'); if (t) t.innerHTML = ''; }
+  const btns = document.getElementById('bsScanButtons');
+  if (btns) btns.style.display = 'flex';
 }
 
 function bsSheetGo() {
@@ -2430,21 +2432,37 @@ function bsApply(barcode, p) {
 
 </script>
 
-<!-- BARCODE SCANNER SHEET v2 — single bottom sheet, iOS PWA safe -->
-<div id="bsScannerSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:10000;background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 32px;box-shadow:0 -6px 32px rgba(0,0,0,.25);">
+<!-- hidden div required by html5-qrcode for scanFile() internal rendering -->
+<div id="_bsQrDiv" style="display:none;position:absolute;width:0;height:0;overflow:hidden;"></div>
+
+<!-- BARCODE SCANNER SHEET v3 — html5-qrcode, live camera + photo -->
+<div id="bsScannerSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:10000;background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 28px;box-shadow:0 -6px 32px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
     <div style="font-size:15px;font-weight:700;color:#1d2b3a;">📷 Barcode Lookup</div>
     <button onclick="closeBarcodeScanner()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8492a6;padding:0 4px;line-height:1;">×</button>
   </div>
-  <div style="font-size:12px;color:#8492a6;margin-bottom:14px;">Take a photo of the barcode or enter the number below</div>
-  <!-- Camera — label+for is the reliable iOS PWA trigger; input hidden off-screen (not left:-9999px) -->
-  <input type="file" id="bsFileInput2" accept="image/*" capture="environment"
-         style="position:absolute;top:-200px;left:-200px;width:1px;height:1px;opacity:0;"
-         onchange="bsHandlePhoto(this)">
-  <label for="bsFileInput2" style="display:block;width:100%;padding:14px;background:#0070f2;color:#fff;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:12px;box-sizing:border-box;text-align:center;">📷 Take Photo of Barcode</label>
-  <!-- Status line -->
+  <div style="font-size:12px;color:#8492a6;margin-bottom:14px;">Point camera at the barcode, or take a photo</div>
+
+  <!-- LIVE CAMERA SCAN -->
+  <div id="bsLiveWrap" style="display:none;margin-bottom:12px;">
+    <div id="bsLiveTarget" style="width:100%;border-radius:10px;overflow:hidden;background:#111;"></div>
+    <button onclick="bsStopLive()" style="width:100%;margin-top:8px;padding:10px;background:#f0f2f5;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;font-family:inherit;">✕ Stop Camera</button>
+  </div>
+
+  <!-- Buttons row -->
+  <div id="bsScanButtons" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;">
+    <!-- input INSIDE label — most reliable iOS trigger (no id/for needed) -->
+    <label style="display:block;width:100%;padding:14px;background:#0070f2;color:#fff;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-sizing:border-box;text-align:center;">
+      📷 Take Photo of Barcode
+      <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="bsHandlePhoto(this)">
+    </label>
+    <button onclick="bsStartLive()" style="width:100%;padding:13px;background:#f0f2f5;border:none;border-radius:10px;font-size:15px;font-weight:600;color:#1d2b3a;cursor:pointer;font-family:inherit;">🎥 Scan with Live Camera</button>
+  </div>
+
+  <!-- Status -->
   <div id="bsSheetStatus" style="font-size:13px;color:#1d2b3a;font-weight:500;min-height:18px;line-height:1.5;word-break:break-word;margin-bottom:12px;padding:2px 0;"></div>
-  <!-- Manual entry inline -->
+
+  <!-- Manual entry -->
   <div style="font-size:12px;color:#8492a6;margin-bottom:6px;font-weight:500;">Or type the barcode number:</div>
   <div style="display:flex;gap:8px;margin-bottom:10px;">
     <input id="bsSheetBarcode" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 098709088504"
@@ -2455,6 +2473,7 @@ function bsApply(barcode, p) {
   </div>
   <button onclick="closeBarcodeScanner()" style="width:100%;padding:11px;background:#f0f2f5;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;font-family:inherit;">Cancel</button>
 </div>
+
 <!-- VINTAGE PICKER SHEET -->
 <div id="bsVintageSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:10002;background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 32px;box-shadow:0 -6px 32px rgba(0,0,0,.25);">
   <div style="font-size:15px;font-weight:700;color:#1d2b3a;margin-bottom:4px;">What vintage is this wine?</div>
@@ -2468,6 +2487,6 @@ function bsApply(barcode, p) {
   </div>
   <button onclick="bsVintageSkip()" style="width:100%;padding:12px;background:#f0f2f5;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;font-family:inherit;">Skip — I'll enter later</button>
 </div>
-<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </body>
 </html>

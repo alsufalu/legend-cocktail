@@ -3019,6 +3019,23 @@ function deleteMenu_saved(id){
   renderMenu();
 }
 
+function duplicateMenu_saved(id){
+  initSavedMenus();
+  const src=state.savedMenus.find(x=>x.id===id);
+  if(!src) return;
+  const name=prompt('Name for the duplicate menu:','Copy of '+src.name);
+  if(!name) return;
+  const copy=JSON.parse(JSON.stringify(src));
+  copy.id='menu-'+Date.now();
+  copy.name=name;
+  copy.createdAt=new Date().toLocaleString();
+  copy.updatedAt=new Date().toLocaleString();
+  const idx=state.savedMenus.findIndex(x=>x.id===id);
+  state.savedMenus.splice(idx+1,0,copy); // insert right after original
+  saveData();
+  renderMenu();
+}
+
 function updateMenuNameState(v){ state.activeMenuName=v; autoSaveActiveMenu(); }
 
 function updateEventCalc(field, val){
@@ -3146,6 +3163,7 @@ function renderMenu(){
               <div class="menuCardName">${esc(m.name)}</div>
               <div class="menuCardMeta">${(m.items||[]).length} cocktail${(m.items||[]).length!==1?'s':''} · ${esc(m.updatedAt||m.createdAt||'')}</div>
             </div>
+            <button class="btn-ghost" style="flex-shrink:0;font-size:12px;padding:4px 8px;" title="Duplicate" onclick="event.stopPropagation();duplicateMenu_saved('${m.id}')">⧉</button>
             <button class="btn-danger" style="flex-shrink:0" onclick="event.stopPropagation();deleteMenu_saved('${m.id}')">✕</button>
           </div>
         </div>`).join('')
