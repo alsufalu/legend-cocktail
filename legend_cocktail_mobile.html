@@ -204,7 +204,7 @@
     .snackbar.show { opacity: 1; }
 
     /* ===== PHOTO ===== */
-    .cocktail-photo { width: 100%; height: 180px; object-fit: cover; border-radius: 12px; margin-bottom: 14px; display: block; }
+    .cocktail-photo { width: 100%; max-height: 320px; object-fit: contain; background: #111; border-radius: 12px; margin-bottom: 14px; display: block; }
     .photo-upload-btn { width: 100%; padding: 14px; border: 2px dashed var(--border); border-radius: 12px; background: var(--surface2); color: var(--ink3); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: center; margin-bottom: 14px; }
     .photo-upload-btn:active { background: var(--surface3); }
 
@@ -1945,75 +1945,85 @@ async function bsHandlePhoto(input) {
   if (!file) return;
   try { input.value = ''; } catch(e) {}
   const st = document.getElementById('bsSheetStatus');
-  st.textContent = '⏳ Reading photo…';
+  st.textContent = '⏳ Processing photo…';
   let decoded = null;
 
+  // --- helpers ---
+  // Draw source onto a canvas, optionally rotated
+  function makeCanvas(source, w, h, deg) {
+    const c = document.createElement('canvas');
+    const rotated = (deg === 90 || deg === 270);
+    c.width  = rotated ? h : w;
+    c.height = rotated ? w : h;
+    const ctx = c.getContext('2d');
+    ctx.translate(c.width / 2, c.height / 2);
+    ctx.rotate(deg * Math.PI / 180);
+    ctx.drawImage(source, -w / 2, -h / 2, w, h);
+    return c;
+  }
+
+  // Try native BarcodeDetector on any drawable source
+  async function tryBD(source) {
+    if (typeof BarcodeDetector === 'undefined') return null;
+    try {
+      let fmts;
+      try { fmts = await BarcodeDetector.getSupportedFormats(); } catch(e) { fmts = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']; }
+      const results = await new BarcodeDetector({ formats: fmts }).detect(source);
+      return results.length ? results[0].rawValue : null;
+    } catch(e) { return null; }
+  }
+
+  // Try ZXing (with TRY_HARDER) on a canvas element
+  async function tryZX(canvas) {
+    if (typeof ZXing === 'undefined') return null;
+    try {
+      // TRY_HARDER makes ZXing try more decode strategies — big difference for real photos
+      const hints = new Map([[ZXing.DecodeHintType.TRY_HARDER, true]]);
+      const reader = new ZXing.BrowserMultiFormatReader(hints);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
+      const result = await reader.decodeFromImageElement(img);
+      return result.getText ? result.getText() : String(result.text || '');
+    } catch(e) { return null; }
+  }
+
+  // Try both decoders on every 90° rotation of a source image
+  async function tryAllRotations(source, w, h) {
+    for (const deg of [0, 90, 270, 180]) {
+      const c = makeCanvas(source, w, h, deg);
+      const r = (await tryBD(c)) || (await tryZX(c));
+      if (r) return r;
+    }
+    return null;
+  }
+
+  // Scale dimensions down so neither side exceeds MAX
+  function scaleDims(w, h, MAX) {
+    if (w <= MAX && h <= MAX) return [w, h];
+    return w >= h ? [MAX, Math.round(h * MAX / w)] : [Math.round(w * MAX / h), MAX];
+  }
+
   try {
-    // Method 1: BarcodeDetector on ImageBitmap
-    // createImageBitmap on Safari 15+ auto-applies EXIF rotation — critical for iPhone photos
-    if (typeof BarcodeDetector !== 'undefined') {
-      try {
-        const bitmap = await createImageBitmap(file);
-        let bd;
-        try {
-          const fmts = await BarcodeDetector.getSupportedFormats();
-          bd = new BarcodeDetector({ formats: fmts });
-        } catch(e2) {
-          bd = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'] });
-        }
-        const results = await bd.detect(bitmap);
-        if (results.length) decoded = results[0].rawValue;
-        try { bitmap.close(); } catch(e2) {}
-      } catch(e) {}
+    // --- Pass 1: createImageBitmap (Safari 15+ applies EXIF automatically) ---
+    let bitmap = null;
+    try { bitmap = await createImageBitmap(file); } catch(e) {}
+
+    if (bitmap) {
+      const [w, h] = scaleDims(bitmap.width, bitmap.height, 1400);
+      decoded = await tryAllRotations(bitmap, w, h);
+      try { bitmap.close(); } catch(e) {}
     }
 
-    // Method 2: ZXing on EXIF-corrected canvas (createImageBitmap handles rotation)
-    if (!decoded && typeof ZXing !== 'undefined') {
-      try {
-        const bitmap = await createImageBitmap(file);
-        const MAX = 1500;
-        let w = bitmap.width, h = bitmap.height;
-        if (w > MAX || h > MAX) {
-          if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
-          else { w = Math.round(w * MAX / h); h = MAX; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
-        try { bitmap.close(); } catch(e2) {}
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-        const img = new Image();
-        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
-        const result = await new ZXing.BrowserMultiFormatReader().decodeFromImageElement(img);
-        decoded = result.getText ? result.getText() : String(result.text || '');
-      } catch(e) {}
-    }
-
-    // Method 3: ZXing on raw file URL at multiple scales (last resort)
-    if (!decoded && typeof ZXing !== 'undefined') {
+    // --- Pass 2: raw URL fallback (older iOS / if createImageBitmap failed) ---
+    if (!decoded) {
       try {
         const url = URL.createObjectURL(file);
-        const imgRaw = new Image();
-        await new Promise((res, rej) => { imgRaw.onload = res; imgRaw.onerror = rej; imgRaw.src = url; });
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
         URL.revokeObjectURL(url);
-        for (const MAX of [800, 1200, 1600]) {
-          if (decoded) break;
-          let w = imgRaw.naturalWidth, h = imgRaw.naturalHeight;
-          if (w > MAX || h > MAX) {
-            if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
-            else { w = Math.round(w * MAX / h); h = MAX; }
-          }
-          const c = document.createElement('canvas');
-          c.width = w; c.height = h;
-          c.getContext('2d').drawImage(imgRaw, 0, 0, w, h);
-          const ri = new Image();
-          const du = c.toDataURL('image/jpeg', 0.92);
-          await new Promise((res, rej) => { ri.onload = res; ri.onerror = rej; ri.src = du; });
-          try {
-            const result2 = await new ZXing.BrowserMultiFormatReader().decodeFromImageElement(ri);
-            decoded = result2.getText ? result2.getText() : String(result2.text || '');
-          } catch(e2) {}
-        }
+        const [w, h] = scaleDims(img.naturalWidth, img.naturalHeight, 1400);
+        decoded = await tryAllRotations(img, w, h);
       } catch(e) {}
     }
 
@@ -2022,10 +2032,10 @@ async function bsHandlePhoto(input) {
       st.textContent = '✓ Scanned: ' + clean + ' — looking up…';
       await bsLookup(clean);
     } else {
-      st.textContent = '⚠ Barcode not found in photo. Try better lighting, get closer, or enter the number below.';
+      st.textContent = '⚠ No barcode found. Make sure the barcode fills most of the frame and is well-lit. Or enter the number below.';
     }
   } catch(e) {
-    st.textContent = '⚠ Could not process photo. Enter the barcode number below.';
+    st.textContent = '⚠ Could not read photo. Enter the barcode number below.';
   }
 }
 
