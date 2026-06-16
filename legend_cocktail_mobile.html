@@ -1066,14 +1066,17 @@ function renderCocktailSheet() {
 function handlePhotoUpload(event) {
   const file = event.target.files[0];
   if (!file || !cocktailDraft) return;
+  const targetId = cocktailDraft.id; // capture now — reader.onload is async
+  event.target.value = ''; // clear input immediately
   const reader = new FileReader();
   reader.onload = e => {
+    // Bail if user switched to a different cocktail while photo was loading
+    if (!cocktailDraft || cocktailDraft.id !== targetId) return;
     cocktailDraft.photo = e.target.result;
     cocktailTab = 'photo';
     renderCocktailSheet();
   };
   reader.readAsDataURL(file);
-  event.target.value = '';
 }
 
 function filterRecipeIng(idx, val) {
