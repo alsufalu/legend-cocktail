@@ -205,6 +205,8 @@
 
     /* ===== PHOTO ===== */
     .cocktail-photo { width: 100%; max-height: 320px; object-fit: contain; background: #111; border-radius: 12px; margin-bottom: 14px; display: block; }
+    @keyframes bsScanPulse { 0%,100%{opacity:.5;top:10%} 50%{opacity:1;top:85%} }
+    #bsScanLine { animation: bsScanPulse 2s ease-in-out infinite; }
     .photo-upload-btn { width: 100%; padding: 14px; border: 2px dashed var(--border); border-radius: 12px; background: var(--surface2); color: var(--ink3); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: center; margin-bottom: 14px; }
     .photo-upload-btn:active { background: var(--surface3); }
 
@@ -867,7 +869,7 @@ function openIngSheet(id) {
     ingDraft = JSON.parse(JSON.stringify(found));
     document.getElementById('ingSheetTitle').textContent = 'Edit Ingredient';
   } else {
-    ingDraft = {id: uid(), name:'', brand:'', category:'Spirits', unit:'oz', recipeUnit:'oz', packageSize:750, packageCost:0, yieldQty:750, purchaseCost:0, abv:'', notes:''};
+    ingDraft = {id: uid(), name:'', brand:'', category:'Spirits', unit:'oz', recipeUnit:'oz', packageSize:750, packageCost:0, yieldQty:750, purchaseCost:0, abv:'', notes:'', comments:''};
     document.getElementById('ingSheetTitle').textContent = 'Add Ingredient';
   }
   renderIngSheetBody();
@@ -897,6 +899,7 @@ function renderIngSheetBody() {
       <div class="field"><label>Purchase Cost $</label><input type="number" step="0.01" value="${esc(i.purchaseCost??i.packageCost??0)}" oninput="ingDraft.purchaseCost=Number(this.value);ingDraft.packageCost=Number(this.value)"/></div>
     </div>
     <div class="field"><label>Notes</label><textarea oninput="ingDraft.notes=this.value">${esc(i.notes||'')}</textarea></div>
+    <div class="field"><label>Comments</label><textarea oninput="ingDraft.comments=this.value" placeholder="e.g. preferred brand, where to buy, substitutions…">${esc(i.comments||'')}</textarea></div>
     <div class="field"><label>Storage Location</label><select onchange="mobileIngLocChange(this.value)"><option value="">— None —</option>${storageLocs().map(l=>`<option value="${l.id}"${i.storageLocationId===l.id?' selected':''}>${esc(l.name)}</option>`).join('')}<option value="__new__">➕ Add new location...</option></select></div>
     <div class="field"><label>Bin / Space</label><select ${i.storageLocationId?'':'disabled'} onchange="mobileIngBinChange(this.value)"><option value="">— None —</option>${(storageLocById(i.storageLocationId)?.bins||[]).map(b=>`<option value="${esc(b)}"${i.bin===b?' selected':''}>${esc(b)}</option>`).join('')}<option value="__new__">➕ Add new bin...</option></select></div>
     ${i.id && state.ingredients.find(x=>x.id===i.id) ? `<button class="btn btn-danger btn-full" onclick="deleteIngredient('${i.id}')">Delete Ingredient</button>` : ''}
@@ -1032,13 +1035,12 @@ function renderCocktailSheet() {
       const unitOpts = state.units.map(u=>`<option value="${u.id}"${r.unit===u.id?' selected':''}>${esc(u.abbr)}</option>`).join('');
       return `<div class="recipe-line">
         <div class="autocomplete-wrap">
-          <input style="margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;"
+          <input id="recipeIngInput${idx}" style="margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;box-sizing:border-box;"
             placeholder="Search ingredient…"
             value="${esc(ing ? ing.name : (r.ingredientId||''))}"
             oninput="filterRecipeIng(${idx},this.value)"
             onfocus="filterRecipeIng(${idx},this.value)"
             onblur="setTimeout(()=>hideRecipeIng(${idx}),200)"/>
-          <div class="autocomplete-list hidden" id="recipeIngList${idx}"></div>
         </div>
         <div style="display:grid;grid-template-columns:80px 1fr auto;gap:8px;align-items:center;">
           <input type="number" step="0.25" min="0" style="padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:15px;font-family:inherit;width:100%;text-align:center;" value="${r.qty||1}" onchange="cocktailDraft.recipe[${idx}].qty=Number(this.value);renderCocktailSheet()"/>
@@ -1079,31 +1081,46 @@ function handlePhotoUpload(event) {
   reader.readAsDataURL(file);
 }
 
+// Portal-based autocomplete — escapes any overflow clipping context
+function _getRecipeIngPortal() {
+  let p = document.getElementById('_recipeIngPortal');
+  if (!p) {
+    p = document.createElement('div');
+    p.id = '_recipeIngPortal';
+    p.style.cssText = 'position:fixed;z-index:99999;background:#fff;border:1px solid #c8cdd6;border-radius:10px;max-height:220px;overflow-y:auto;box-shadow:0 6px 24px rgba(0,0,0,.2);display:none;';
+    document.body.appendChild(p);
+  }
+  return p;
+}
 function filterRecipeIng(idx, val) {
-  const list = document.getElementById('recipeIngList'+idx);
-  if (!list) return;
+  const input = document.getElementById('recipeIngInput'+idx);
+  if (!input) return;
   const q = val.toLowerCase();
   const matches = state.ingredients.filter(i => i.name.toLowerCase().includes(q) || (i.brand||'').toLowerCase().includes(q)).slice(0,10);
-  if (!matches.length || !q) { list.classList.add('hidden'); return; }
-  list.innerHTML = matches.map(i => `<div class="autocomplete-item" onmousedown="selectRecipeIng(${idx},'${i.id}')">${esc(i.name)}${i.brand?' — '+esc(i.brand):''}</div>`).join('');
-  list.classList.remove('hidden');
-  // Flip above the input if not enough room below
-  const input = list.parentElement ? list.parentElement.querySelector('input') : null;
-  if (input) {
-    const rect = input.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const dropH = Math.min(200, list.scrollHeight);
-    if (spaceBelow < dropH && spaceAbove > spaceBelow) {
-      list.style.top = 'auto'; list.style.bottom = '100%';
-      list.style.marginTop = '0'; list.style.marginBottom = '4px';
-    } else {
-      list.style.top = '100%'; list.style.bottom = 'auto';
-      list.style.marginTop = '4px'; list.style.marginBottom = '0';
-    }
+  const portal = _getRecipeIngPortal();
+  portal._activeIdx = idx;
+  if (!matches.length || !q) { portal.style.display = 'none'; return; }
+  portal.innerHTML = matches.map(i => `<div class="autocomplete-item" onmousedown="selectRecipeIng(${idx},'${i.id}');_getRecipeIngPortal().style.display='none'">${esc(i.name)}${i.brand?' — '+esc(i.brand):''}</div>`).join('');
+  const rect = input.getBoundingClientRect();
+  portal.style.left = rect.left + 'px';
+  portal.style.width = rect.width + 'px';
+  portal.style.display = 'block';
+  const dropH = Math.min(220, portal.scrollHeight);
+  const spaceBelow = window.innerHeight - rect.bottom - 8;
+  if (spaceBelow >= dropH || spaceBelow >= rect.top - 8) {
+    portal.style.top = (rect.bottom + 4) + 'px';
+    portal.style.bottom = 'auto';
+  } else {
+    portal.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+    portal.style.top = 'auto';
   }
 }
-function hideRecipeIng(idx) { const l = document.getElementById('recipeIngList'+idx); if(l) l.classList.add('hidden'); }
+function hideRecipeIng(idx) {
+  setTimeout(() => {
+    const p = document.getElementById('_recipeIngPortal');
+    if (p && p._activeIdx === idx) p.style.display = 'none';
+  }, 200);
+}
 function selectRecipeIng(idx, ingId) {
   const ing = ingMap()[ingId]; if (!ing) return;
   cocktailDraft.recipe[idx].ingredientId = ingId;
@@ -1952,93 +1969,144 @@ function openBarcodeScanner(target) {
 }
 
 function closeBarcodeScanner() {
-  bsStopLive();
+  bsStopLive(false);
   document.getElementById('bsScannerSheet').style.display = 'none';
   document.getElementById('bsVintageSheet').style.display = 'none';
 }
 
-// ---- Photo scan via html5-qrcode ----
-let _h5qrFile = null;
+// ---- Live camera — native getUserMedia + BarcodeDetector (no external library) ----
+let _bsStream = null;
+let _bsScanning = false;
+let _bsTorchOn = false;
 
+async function bsStartLive() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    document.getElementById('bsSheetStatus').textContent = '⚠ Camera not available. Use "Take Photo" or enter the number below.';
+    return;
+  }
+  if (typeof BarcodeDetector === 'undefined') {
+    document.getElementById('bsSheetStatus').textContent = '⚠ Live scan requires iOS 16+ Safari. Use "Take Photo" or enter the number below.';
+    return;
+  }
+  try {
+    _bsStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const video = document.getElementById('bsVideoEl');
+    video.srcObject = _bsStream;
+    await video.play();
+
+    // Show full-screen overlay, hide bottom sheet
+    document.getElementById('bsScanOverlay').style.display = 'flex';
+    document.getElementById('bsScannerSheet').style.display = 'none';
+    document.getElementById('bsScanMsg').textContent = '';
+    _bsTorchOn = false;
+
+    // BarcodeDetector scan loop
+    let fmts;
+    try { fmts = await BarcodeDetector.getSupportedFormats(); } catch(e) { fmts = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']; }
+    const bd = new BarcodeDetector({ formats: fmts });
+    _bsScanning = true;
+
+    const scan = async () => {
+      if (!_bsScanning) return;
+      try {
+        const results = await bd.detect(video);
+        if (results && results.length) {
+          const raw = results[0].rawValue;
+          const clean = raw.replace(/[^0-9]/g, '') || raw;
+          bsStopLive(false);
+          document.getElementById('bsSheetStatus').textContent = '✓ Scanned: ' + clean + ' — looking up…';
+          document.getElementById('bsScannerSheet').style.display = 'block';
+          bsLookup(clean);
+          return;
+        }
+      } catch(e) {}
+      if (_bsScanning) requestAnimationFrame(scan);
+    };
+    requestAnimationFrame(scan);
+
+  } catch(e) {
+    bsStopLive(false);
+    const msg = (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')
+      ? '⚠ Camera permission denied. Go to Settings → Safari → Camera and allow access.'
+      : '⚠ Camera unavailable on this device. Use "Take Photo" or enter the number below.';
+    document.getElementById('bsSheetStatus').textContent = msg;
+    document.getElementById('bsScannerSheet').style.display = 'block';
+  }
+}
+
+function bsStopLive(showSheet = true) {
+  _bsScanning = false;
+  _bsTorchOn = false;
+  if (_bsStream) { _bsStream.getTracks().forEach(t => t.stop()); _bsStream = null; }
+  const video = document.getElementById('bsVideoEl');
+  if (video) video.srcObject = null;
+  document.getElementById('bsScanOverlay').style.display = 'none';
+  if (showSheet) document.getElementById('bsScannerSheet').style.display = 'block';
+}
+
+async function bsToggleTorch() {
+  if (!_bsStream) return;
+  try {
+    const track = _bsStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.torch) { document.getElementById('bsScanMsg').textContent = 'Torch not supported'; return; }
+    _bsTorchOn = !_bsTorchOn;
+    await track.applyConstraints({ advanced: [{ torch: _bsTorchOn }] });
+    document.getElementById('bsTorchBtn').style.opacity = _bsTorchOn ? '1' : '.8';
+  } catch(e) {}
+}
+
+// ---- Photo scan — native BarcodeDetector only ----
 async function bsHandlePhoto(input) {
   const file = input.files[0];
   if (!file) return;
   try { input.value = ''; } catch(e) {}
   const st = document.getElementById('bsSheetStatus');
   st.textContent = '⏳ Reading barcode…';
-  let decoded = null;
 
-  // Method 1: html5-qrcode scanFile — handles EXIF, rotation, all major formats
-  if (typeof Html5Qrcode !== 'undefined') {
-    try {
-      if (!_h5qrFile) _h5qrFile = new Html5Qrcode('_bsQrDiv');
-      decoded = await _h5qrFile.scanFile(file, /* showImage */ false);
-    } catch(e) { decoded = null; }
-  }
-
-  // Method 2: native BarcodeDetector (iOS 17+) as fallback
-  if (!decoded && typeof BarcodeDetector !== 'undefined') {
-    try {
-      const bitmap = await createImageBitmap(file);
-      let fmts;
-      try { fmts = await BarcodeDetector.getSupportedFormats(); } catch(e2) { fmts = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']; }
-      const results = await new BarcodeDetector({ formats: fmts }).detect(bitmap);
-      if (results.length) decoded = results[0].rawValue;
-      try { bitmap.close(); } catch(e2) {}
-    } catch(e) {}
-  }
-
-  if (decoded) {
-    const clean = decoded.replace(/[^0-9]/g, '') || decoded;
-    st.textContent = '✓ Scanned: ' + clean + ' — looking up…';
-    await bsLookup(clean);
-  } else {
-    st.textContent = '⚠ Could not read barcode from photo. Try the live camera, or enter the number below.';
-  }
-}
-
-// ---- Live camera scan via html5-qrcode ----
-let _h5qrLive = null;
-
-async function bsStartLive() {
-  if (typeof Html5Qrcode === 'undefined') {
-    document.getElementById('bsSheetStatus').textContent = '⚠ Scanner library not loaded yet. Try again in a moment.';
+  if (typeof BarcodeDetector === 'undefined') {
+    st.textContent = '⚠ Barcode detection requires iOS 16+ Safari. Enter the number below.';
     return;
   }
-  const wrap = document.getElementById('bsLiveWrap');
-  const target = document.getElementById('bsLiveTarget');
-  target.innerHTML = '';
-  wrap.style.display = 'block';
-  document.getElementById('bsScanButtons').style.display = 'none';
-  document.getElementById('bsSheetStatus').textContent = 'Starting camera…';
 
   try {
-    if (_h5qrLive) { try { await _h5qrLive.stop(); } catch(e) {} _h5qrLive = null; }
-    _h5qrLive = new Html5Qrcode('bsLiveTarget');
-    await _h5qrLive.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 240, height: 120 }, aspectRatio: 2.0 },
-      async (text) => {
-        const clean = text.replace(/[^0-9]/g, '') || text;
-        await bsStopLive();
-        document.getElementById('bsSheetStatus').textContent = '✓ Scanned: ' + clean + ' — looking up…';
-        bsLookup(clean);
-      },
-      () => {} // ignore per-frame errors
-    );
-    document.getElementById('bsSheetStatus').textContent = 'Hold barcode steady in the box…';
-  } catch(e) {
-    await bsStopLive();
-    document.getElementById('bsSheetStatus').textContent = '⚠ Camera unavailable — ' + (e.message || 'permission denied') + '. Use "Take Photo" instead.';
-  }
-}
+    let fmts;
+    try { fmts = await BarcodeDetector.getSupportedFormats(); } catch(e) { fmts = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']; }
+    const bd = new BarcodeDetector({ formats: fmts });
 
-async function bsStopLive() {
-  try { if (_h5qrLive) { await _h5qrLive.stop(); _h5qrLive = null; } } catch(e) { _h5qrLive = null; }
-  const wrap = document.getElementById('bsLiveWrap');
-  if (wrap) { wrap.style.display = 'none'; const t = document.getElementById('bsLiveTarget'); if (t) t.innerHTML = ''; }
-  const btns = document.getElementById('bsScanButtons');
-  if (btns) btns.style.display = 'flex';
+    // createImageBitmap applies EXIF rotation on iOS 15+
+    const bitmap = await createImageBitmap(file);
+    let results = await bd.detect(bitmap);
+
+    // Try rotations if not found
+    if (!results.length) {
+      for (const deg of [90, 270, 180]) {
+        const rotated = (deg === 90 || deg === 270);
+        const c = document.createElement('canvas');
+        c.width = rotated ? bitmap.height : bitmap.width;
+        c.height = rotated ? bitmap.width : bitmap.height;
+        const ctx = c.getContext('2d');
+        ctx.translate(c.width / 2, c.height / 2);
+        ctx.rotate(deg * Math.PI / 180);
+        ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
+        results = await bd.detect(c);
+        if (results.length) break;
+      }
+    }
+    try { bitmap.close(); } catch(e) {}
+
+    if (results.length) {
+      const clean = results[0].rawValue.replace(/[^0-9]/g, '') || results[0].rawValue;
+      st.textContent = '✓ Scanned: ' + clean + ' — looking up…';
+      await bsLookup(clean);
+    } else {
+      st.textContent = '⚠ No barcode found in photo. Try the live camera or enter the number below.';
+    }
+  } catch(e) {
+    st.textContent = '⚠ Could not read photo. Try the live camera or enter the number below.';
+  }
 }
 
 function bsSheetGo() {
@@ -2432,31 +2500,46 @@ function bsApply(barcode, p) {
 
 </script>
 
-<!-- hidden div required by html5-qrcode for scanFile() internal rendering -->
-<div id="_bsQrDiv" style="display:none;position:absolute;width:0;height:0;overflow:hidden;"></div>
+<!-- BARCODE LIVE SCAN OVERLAY — fullscreen, CellarTracker style -->
+<div id="bsScanOverlay" style="display:none;position:fixed;inset:0;z-index:10001;background:#000;flex-direction:column;">
+  <video id="bsVideoEl" style="width:100%;height:100%;object-fit:cover;" autoplay muted playsinline></video>
+  <!-- Instruction text -->
+  <div style="position:absolute;top:0;left:0;right:0;padding:52px 20px 16px;text-align:center;color:#fff;font-size:15px;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,.9);background:linear-gradient(rgba(0,0,0,.55),transparent);">
+    Place the UPC/EAN barcode within the box to scan
+  </div>
+  <!-- Viewfinder box -->
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+    <div style="position:relative;width:78%;max-width:340px;height:160px;">
+      <div style="position:absolute;inset:0;border:2.5px solid #0f0;border-radius:4px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);"></div>
+      <div id="bsScanLine" style="position:absolute;left:4px;right:4px;height:2px;background:rgba(255,60,60,.85);border-radius:2px;box-shadow:0 0 6px rgba(255,60,60,.7);"></div>
+    </div>
+  </div>
+  <!-- Bottom controls -->
+  <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 28px 44px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(transparent,rgba(0,0,0,.55));">
+    <button onclick="bsStopLive(true)" style="background:none;border:none;color:#4af;font-size:18px;font-weight:500;cursor:pointer;font-family:inherit;padding:8px;">Cancel</button>
+    <div id="bsScanMsg" style="color:#fff;font-size:12px;font-weight:500;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,.9);max-width:180px;"></div>
+    <button id="bsTorchBtn" onclick="bsToggleTorch()" style="background:none;border:none;cursor:pointer;padding:8px;opacity:.8;" title="Flashlight">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M9 3h6l-1 6h-4L9 3zM10 9l-4 7h4l-1 5 9-11h-5l1-6"/></svg>
+    </button>
+  </div>
+</div>
 
-<!-- BARCODE SCANNER SHEET v3 — html5-qrcode, live camera + photo -->
-<div id="bsScannerSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:10000;background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 28px;box-shadow:0 -6px 32px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto;">
+<!-- BARCODE SCANNER SHEET — photo + manual entry -->
+<div id="bsScannerSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:10000;background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 28px;box-shadow:0 -6px 32px rgba(0,0,0,.25);">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
     <div style="font-size:15px;font-weight:700;color:#1d2b3a;">📷 Barcode Lookup</div>
     <button onclick="closeBarcodeScanner()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#8492a6;padding:0 4px;line-height:1;">×</button>
   </div>
-  <div style="font-size:12px;color:#8492a6;margin-bottom:14px;">Point camera at the barcode, or take a photo</div>
+  <div style="font-size:12px;color:#8492a6;margin-bottom:14px;">Scan live or take a photo of the barcode</div>
 
-  <!-- LIVE CAMERA SCAN -->
-  <div id="bsLiveWrap" style="display:none;margin-bottom:12px;">
-    <div id="bsLiveTarget" style="width:100%;border-radius:10px;overflow:hidden;background:#111;"></div>
-    <button onclick="bsStopLive()" style="width:100%;margin-top:8px;padding:10px;background:#f0f2f5;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;font-family:inherit;">✕ Stop Camera</button>
-  </div>
-
-  <!-- Buttons row -->
-  <div id="bsScanButtons" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;">
-    <!-- input INSIDE label — most reliable iOS trigger (no id/for needed) -->
-    <label style="display:block;width:100%;padding:14px;background:#0070f2;color:#fff;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-sizing:border-box;text-align:center;">
+  <!-- Scan buttons -->
+  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;">
+    <button onclick="bsStartLive()" style="width:100%;padding:14px;background:#0070f2;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">🎥 Scan Barcode with Camera</button>
+    <!-- input inside label — most reliable iOS trigger -->
+    <label style="display:block;width:100%;padding:13px;background:#f0f2f5;border:none;border-radius:10px;font-size:15px;font-weight:600;color:#1d2b3a;cursor:pointer;font-family:inherit;box-sizing:border-box;text-align:center;">
       📷 Take Photo of Barcode
       <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="bsHandlePhoto(this)">
     </label>
-    <button onclick="bsStartLive()" style="width:100%;padding:13px;background:#f0f2f5;border:none;border-radius:10px;font-size:15px;font-weight:600;color:#1d2b3a;cursor:pointer;font-family:inherit;">🎥 Scan with Live Camera</button>
   </div>
 
   <!-- Status -->
@@ -2487,6 +2570,6 @@ function bsApply(barcode, p) {
   </div>
   <button onclick="bsVintageSkip()" style="width:100%;padding:12px;background:#f0f2f5;border:none;border-radius:10px;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;font-family:inherit;">Skip — I'll enter later</button>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<!-- No external barcode library needed — uses native BarcodeDetector + getUserMedia -->
 </body>
 </html>

@@ -1364,6 +1364,7 @@ function renderIngredients(q){
           <div class="span2"><label>Buy As (Shopping List Label)</label><input class="input" placeholder="e.g. 750ml Bottle, Whole Orange..." value="${esc(d.purchaseLabel||'')}" onchange="updateIngredientDraft('purchaseLabel',this.value)"></div>
           <div><label>Storage Location</label>${storageLocSelectHtml(d.storageLocationId||'','draftSetStorageLoc(this.value)')}</div>
           <div><label>Bin / Space</label>${binSelectHtml(d.storageLocationId||'',d.bin||'','draftSetBin(this.value)')}</div>
+          <div class="span2"><label>Comments</label><textarea class="input" rows="2" style="resize:vertical" placeholder="e.g. preferred brand, where to buy, substitutions…" onchange="updateIngredientDraft('comments',this.value)">${esc(d.comments||'')}</textarea></div>
         </div>
         <div class="actions" style="border-top:0;margin-top:14px;padding-top:0"><button class="primary" onclick="saveIngredientDraft()">Save Ingredient</button><button class="darkbtn" onclick="cancelIngredientForm()">Cancel</button></div>
       </div>`);
@@ -1454,6 +1455,7 @@ function renderIngredients(q){
         <div class="span2"><label>Buy As (Shopping List Label)</label><input class="input" value="${esc(selIng.purchaseLabel||'')}" placeholder="e.g. 750ml Bottle, Whole Orange..." onchange="updateIngredient('${selIng.id}','purchaseLabel',this.value)"></div>
         <div><label>Storage Location</label>${storageLocSelectHtml(selIng.storageLocationId||'','ingSetStorageLoc(\''+selIng.id+'\',this.value)')}</div>
         <div><label>Bin / Space</label>${binSelectHtml(selIng.storageLocationId||'',selIng.bin||'','ingSetBin(\''+selIng.id+'\',\''+esc(selIng.storageLocationId||'')+'\',this.value)')}</div>
+        <div class="span2"><label>Comments</label><textarea class="input" rows="2" style="resize:vertical" placeholder="e.g. preferred brand, where to buy, substitutions…" onchange="updateIngredient('${selIng.id}','comments',this.value)">${esc(selIng.comments||'')}</textarea></div>
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-ghost" onclick="duplicateIngredient('${selIng.id}')">⧉ Duplicate</button>
