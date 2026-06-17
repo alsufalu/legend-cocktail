@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Legend Cocktail — Cloud</title>
+  <title>Shaker &amp; Cellar</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
-/* ===== LEGEND COCKTAIL — FIELDGLASS THEME ===== */
+/* ===== SHAKER & CELLAR — FIELDGLASS THEME ===== */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
@@ -767,33 +767,39 @@ details[open] > summary .chevron { transform: rotate(180deg); }
 .loginBox {
   background: var(--surface);
   border-radius: 16px;
-  padding: 40px 48px;
+  padding: 36px 44px;
   box-shadow: 0 8px 40px rgba(0,0,0,.3);
   text-align: center;
-  min-width: 320px;
+  width: 360px;
 }
 .loginBox .loginLogo {
   width: 56px; height: 56px; background: var(--amber);
   border-radius: 12px; display: flex; align-items: center;
   justify-content: center; font-size: 26px; font-weight: 800;
-  color: white; margin: 0 auto 16px;
+  color: white; margin: 0 auto 14px;
 }
 .loginBox h2 { font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
-.loginBox p { font-size: 13px; color: var(--ink3); margin-bottom: 24px; }
+.loginBox p { font-size: 13px; color: var(--ink3); margin-bottom: 20px; }
+.loginTabs { display:flex; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:3px; margin-bottom:18px; }
+.loginTab { flex:1; padding:8px; border:none; border-radius:6px; background:transparent; color:var(--ink3); font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; }
+.loginTab.active { background:var(--blue); color:white; }
 .loginBox input {
   width: 100%; padding: 10px 14px; border: 1px solid var(--border2);
-  border-radius: var(--radius); font-size: 15px; font-family: inherit;
+  border-radius: var(--radius); font-size: 14px; font-family: inherit;
   background: var(--surface2); color: var(--ink); outline: none;
-  text-align: center; letter-spacing: .1em; margin-bottom: 12px;
+  margin-bottom: 10px; box-sizing: border-box;
 }
 .loginBox input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,112,242,.12); }
+.loginPwWrap { position:relative; margin-bottom:10px; }
+.loginPwWrap input { margin-bottom:0; padding-right:42px; }
+.loginPwToggle { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--ink3); font-size:18px; cursor:pointer; padding:0; line-height:1; }
 .loginBox .loginBtn {
   width: 100%; padding: 11px; background: var(--blue); color: white;
   border: none; border-radius: var(--radius); font-size: 15px;
-  font-weight: 600; cursor: pointer; font-family: inherit;
+  font-weight: 600; cursor: pointer; font-family: inherit; margin-top:4px;
 }
 .loginBox .loginBtn:hover { background: var(--blue2); }
-.loginBox .loginError { color: var(--red); font-size: 12px; margin-top: 8px; display: none; }
+.loginBox .loginError { font-size: 12px; margin-top: 10px; min-height:16px; }
 #cloudStatus {
   font-size: 11px; color: var(--ink3); white-space: nowrap;
   display: flex; align-items: center; gap: 4px;
@@ -815,11 +821,30 @@ details[open] > summary .chevron { transform: rotate(180deg); }
 <div id="loginOverlay">
   <div class="loginBox">
     <div class="loginLogo">L</div>
-    <h2>Legend Bartending</h2>
-    <p>Enter your password to access the app</p>
-    <input type="password" id="loginInput" placeholder="Password" onkeydown="if(event.key==='Enter')checkLogin()">
-    <button class="loginBtn" onclick="checkLogin()">Sign In</button>
-    <div class="loginError" id="loginError">Incorrect password. Please try again.</div>
+    <h2>Shaker &amp; Cellar</h2>
+    <p>Cocktail Cost &amp; Menu Builder</p>
+    <div class="loginTabs">
+      <button class="loginTab active" id="deskTabSignIn" onclick="switchAuthTab('signin')">Sign In</button>
+      <button class="loginTab" id="deskTabRegister" onclick="switchAuthTab('register')">Create Account</button>
+    </div>
+    <div id="deskAuthForm">
+      <div id="deskNameWrap" style="display:none">
+        <input type="text" id="deskAuthName" placeholder="Your full name" autocomplete="name"/>
+      </div>
+      <input type="email" id="deskAuthEmail" placeholder="Email address" autocomplete="email"/>
+      <div class="loginPwWrap">
+        <input type="password" id="deskAuthPassword" placeholder="Password" autocomplete="current-password"/>
+        <button type="button" class="loginPwToggle" id="deskPwEye1" onclick="togglePw('deskAuthPassword','deskPwEye1')">👁</button>
+      </div>
+      <div id="deskConfirmWrap" style="display:none">
+        <div class="loginPwWrap">
+          <input type="password" id="deskAuthConfirm" placeholder="Confirm password" autocomplete="new-password"/>
+          <button type="button" class="loginPwToggle" id="deskPwEye2" onclick="togglePw('deskAuthConfirm','deskPwEye2')">👁</button>
+        </div>
+      </div>
+      <button class="loginBtn" id="deskAuthSubmitBtn" onclick="submitAuth()">Sign In</button>
+      <div class="loginError" id="loginError"></div>
+    </div>
   </div>
 </div>
 
@@ -828,8 +853,8 @@ details[open] > summary .chevron { transform: rotate(180deg); }
   <div class="topbar-brand">
     <div class="topbar-logo">L</div>
     <div>
-      <div class="topbar-title">Legend Bartending</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v1.5</div>
+      <div class="topbar-title">Shaker &amp; Cellar</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.0</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -844,6 +869,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <label class="fileLabel">⬆ Import <input id="importFile" type="file" accept=".json,application/json" hidden onchange="importBackup(event)"></label>
     <span class="last-saved">Saved: <span id="lastSaved">Not saved yet</span></span>
     <span id="cloudStatus">☁ Connecting…</span>
+    <button class="btn-ghost" id="topbarUserBtn" onclick="signOutDesktop()" style="display:none;font-size:12px;" title="Sign out">👤 <span id="topbarUserName"></span> · Sign Out</button>
   </div>
 </header>
 
@@ -880,8 +906,8 @@ const STORAGE_KEY='legend_cocktail_cost_menu_builder_v25_ppt_import';
 // ===== SUPABASE CLOUD CONFIG =====
 const SUPABASE_URL   = 'https://dcydmngafvdhxxjptexh.supabase.co';
 const SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjeWRtbmdhZnZkaHh4anB0ZXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0OTIxNzcsImV4cCI6MjA5NjA2ODE3N30.bqSr83R3PGNNJN0FlFTjwGJyXOFz6RMlge95HquCw3E';
-const APP_PASSWORD   = 'PabloPinky*1';
-const CLOUD_DATA_ID  = 'legend_app_data';
+const ADMIN_EMAIL    = 'aerubio1@yahoo.com';
+let   currentUser    = null;
 const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 function setCloudStatus(msg, cls=''){
@@ -897,8 +923,10 @@ function syncToCloud(){
   _syncTimer=setTimeout(async()=>{
     try{
       setCloudStatus('☁ Syncing…','');
+      if(!currentUser)return;
       const {error}=await sbClient.from('app_data').upsert({
-        id:CLOUD_DATA_ID,
+        id:currentUser.id,
+        user_id:currentUser.id,
         data:state,
         updated_at:new Date().toISOString()
       },{onConflict:'id'});
@@ -914,8 +942,9 @@ function syncToCloud(){
 async function loadFromCloud(){
   try{
     setCloudStatus('☁ Loading…','');
+    if(!currentUser){ setCloudStatus('☁ Not signed in',''); return false; }
     const {data,error}=await sbClient.from('app_data')
-      .select('data,updated_at').eq('id',CLOUD_DATA_ID).maybeSingle();
+      .select('data,updated_at').eq('id',currentUser.id).maybeSingle();
     if(error||!data||!data.data){ setCloudStatus('☁ No cloud data',''); return false; }
     // Use cloud data if it's newer than local
     const cloudTime=new Date(data.updated_at).getTime();
@@ -923,7 +952,8 @@ async function loadFromCloud(){
     if(cloudTime>localTime){
       const loaded=data.data;
       state={...state,...loaded,units:loaded.units||defaultUnits};
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+      const lsKey=currentUser?STORAGE_KEY+'_'+currentUser.id:STORAGE_KEY;
+      localStorage.setItem(lsKey,JSON.stringify(state));
       setCloudStatus('☁ Synced','synced');
       return true;
     }
@@ -939,8 +969,10 @@ async function loadFromCloud(){
 // Upload current localStorage data to cloud (first-time migration)
 async function pushLocalToCloud(){
   try{
+    if(!currentUser)return;
     await sbClient.from('app_data').upsert({
-      id:CLOUD_DATA_ID,
+      id:currentUser.id,
+      user_id:currentUser.id,
       data:state,
       updated_at:new Date().toISOString()
     },{onConflict:'id'});
@@ -948,37 +980,96 @@ async function pushLocalToCloud(){
   }catch(e){ setCloudStatus('⚠ Sync failed','error'); }
 }
 
-function checkLogin(){
-  const pwd=document.getElementById('loginInput').value;
-  const err=document.getElementById('loginError');
-  if(pwd===APP_PASSWORD){
-    sessionStorage.setItem('legend_auth','1');
-    document.getElementById('loginOverlay').classList.add('hidden');
-    // Try to load latest data from cloud, then render
-    loadFromCloud().then(()=>render());
+// ===== AUTH =====
+let deskAuthMode = 'signin';
+function switchAuthTab(mode) {
+  deskAuthMode = mode;
+  document.getElementById('deskTabSignIn').classList.toggle('active', mode === 'signin');
+  document.getElementById('deskTabRegister').classList.toggle('active', mode === 'register');
+  document.getElementById('deskNameWrap').style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('deskConfirmWrap').style.display = mode === 'register' ? 'block' : 'none';
+  document.getElementById('deskAuthSubmitBtn').textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
+  const err = document.getElementById('loginError');
+  err.textContent = ''; err.style.color = 'var(--red)';
+}
+function togglePw(inputId, btnId) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (inp.type === 'password') { inp.type = 'text'; btn.style.opacity = '1'; }
+  else { inp.type = 'password'; btn.style.opacity = '.45'; }
+}
+async function submitAuth() {
+  const email = (document.getElementById('deskAuthEmail').value || '').trim();
+  const password = document.getElementById('deskAuthPassword').value || '';
+  const err = document.getElementById('loginError');
+  err.style.color = 'var(--red)'; err.textContent = '';
+  if (!email || !password) { err.textContent = 'Please enter email and password.'; return; }
+  if (deskAuthMode === 'register') {
+    const name = (document.getElementById('deskAuthName').value || '').trim();
+    if (!name) { err.textContent = 'Please enter your name.'; return; }
+    const confirm = document.getElementById('deskAuthConfirm').value || '';
+    if (password !== confirm) { err.textContent = 'Passwords do not match.'; return; }
+    const {error} = await sbClient.auth.signUp({email, password, options:{data:{name}}});
+    if (error) { err.textContent = error.message; return; }
+    err.style.color = 'var(--teal)';
+    err.textContent = '✓ Account created! Check your email and click the confirmation link, then come back here and sign in.';
+    switchAuthTab('signin');
   } else {
-    err.style.display='block';
-    document.getElementById('loginInput').value='';
-    document.getElementById('loginInput').focus();
+    const {data, error} = await sbClient.auth.signInWithPassword({email, password});
+    if (error) {
+      err.textContent = error.message.includes('not confirmed') ? 'Please confirm your email first — check your inbox for the confirmation link.' : 'Invalid email or password.';
+      return;
+    }
+    currentUser = data.user;
+    onSignedIn();
   }
 }
+function onSignedIn() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  const userName = currentUser.user_metadata?.name || currentUser.email || '';
+  const btn = document.getElementById('topbarUserBtn');
+  if (btn) { btn.style.display = ''; document.getElementById('topbarUserName').textContent = userName.split(' ')[0]; }
+  const saved = localStorage.getItem(STORAGE_KEY + '_' + currentUser.id);
+  if (saved) { try { const p = JSON.parse(saved); state = {...state, ...p, units: p.units || defaultUnits}; } catch(e) {} }
+  loadFromCloud().then(() => render());
+}
+function showLogin() {
+  currentUser = null;
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  const btn = document.getElementById('topbarUserBtn');
+  if (btn) btn.style.display = 'none';
+  setTimeout(() => document.getElementById('deskAuthEmail').focus(), 100);
+}
+async function signOutDesktop() {
+  await sbClient.auth.signOut();
+  state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:'',storageLocations:[],wines:[]};
+  render();
+  showLogin();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('loginOverlay').classList.contains('hidden')) submitAuth();
+});
 
-// On page load: check session, show login or go straight in
-window.addEventListener('DOMContentLoaded',()=>{
+// On page load: check Supabase session
+window.addEventListener('DOMContentLoaded', () => {
   // Show version from URL query string e.g. ?v20260615_001
   const urlVer = new URLSearchParams(window.location.search).get('v');
-  if(urlVer){
+  if (urlVer) {
     const el = document.getElementById('appVersionLabel');
-    if(el) el.textContent = 'Cocktail Cost & Menu Builder · ' + urlVer;
+    if (el) el.textContent = 'Cocktail Cost & Menu Builder · ' + urlVer;
   }
-
-  if(sessionStorage.getItem('legend_auth')==='1'){
-    document.getElementById('loginOverlay').classList.add('hidden');
-    loadFromCloud().then(()=>render());
-  } else {
-    // Show login — render will be called after successful login
-    setTimeout(()=>document.getElementById('loginInput').focus(),100);
-  }
+  sbClient.auth.onAuthStateChange((event, session) => {
+    if (session?.user && !currentUser) {
+      currentUser = session.user;
+      if (!document.getElementById('loginOverlay').classList.contains('hidden')) onSignedIn();
+    } else if (event === 'SIGNED_OUT') {
+      showLogin();
+    }
+  });
+  sbClient.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) { currentUser = session.user; onSignedIn(); }
+    else { showLogin(); }
+  });
 });
 const oldKey=null;
 const defaultUnits=[{"id": "ml", "label": "Milliliter", "abbr": "ml", "type": "volume", "toBase": 1}, {"id": "oz", "label": "Fluid Ounce", "abbr": "oz", "type": "volume", "toBase": 29.5735}, {"id": "dash", "label": "Dash", "abbr": "dash", "type": "volume", "toBase": 0.92}, {"id": "tsp", "label": "Teaspoon", "abbr": "tsp", "type": "volume", "toBase": 4.92892}, {"id": "tbsp", "label": "Tablespoon", "abbr": "tbsp", "type": "volume", "toBase": 14.7868}, {"id": "cup", "label": "Cup", "abbr": "cup", "type": "volume", "toBase": 236.588}, {"id": "each", "label": "Each", "abbr": "each", "type": "count", "toBase": 1}, {"id": "lime", "label": "Lime", "abbr": "lime", "type": "count", "toBase": 1}, {"id": "lemon", "label": "Lemon", "abbr": "lemon", "type": "count", "toBase": 1}, {"id": "orange", "label": "Orange", "abbr": "orange", "type": "count", "toBase": 1}, {"id": "grapefruit", "label": "Grapefruit", "abbr": "grapefruit", "type": "count", "toBase": 1}, {"id": "egg", "label": "Egg", "abbr": "egg", "type": "count", "toBase": 1}, {"id": "slice", "label": "Slice", "abbr": "slice", "type": "count", "toBase": 1}, {"id": "napkin", "label": "Napkin", "abbr": "napkin", "type": "count", "toBase": 1}, {"id": "straw", "label": "Straw", "abbr": "straw", "type": "count", "toBase": 1}, {"id": "bottle", "label": "Bottle", "abbr": "bottle", "type": "count", "toBase": 1}, {"id": "can", "label": "Can", "abbr": "can", "type": "count", "toBase": 1}, {"id": "bag", "label": "Bag", "abbr": "bag", "type": "count", "toBase": 1}, {"id": "pinch", "label": "Pinch", "abbr": "pinch", "type": "count", "toBase": 1}, {"id": "sprig", "label": "Sprig", "abbr": "sprig", "type": "count", "toBase": 1}, {"id": "leaf", "label": "Leaf", "abbr": "leaf", "type": "count", "toBase": 1}, {"id": "bunch", "label": "Bunch", "abbr": "bunch", "type": "count", "toBase": 1}, {"id":"peel","label":"Peel","abbr":"peel","type":"count","toBase":1}, {"id":"twist","label":"Twist","abbr":"twist","type":"count","toBase":1}, {"id":"wheel","label":"Wheel","abbr":"wheel","type":"count","toBase":1}, {"id":"wedge","label":"Wedge","abbr":"wedge","type":"count","toBase":1}, {"id":"package","label":"Package","abbr":"package","type":"count","toBase":1}, {"id":"carton/dozen","label":"Carton/Dozen","abbr":"carton/dozen","type":"count","toBase":1}];
@@ -1098,8 +1189,8 @@ function updateMenu(idx,k,v){
   });
 }
 function deleteMenu(idx){state.menu.splice(idx,1);autoSaveActiveMenu();render()}
-function saveData(){state.lastSaved=new Date().toLocaleString();localStorage.setItem(STORAGE_KEY,JSON.stringify(state));$('lastSaved').textContent=state.lastSaved;syncToCloud();} 
-function exportBackup(){download('legend-cocktail-builder-backup.json',JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),'application/json')}
+function saveData(){state.lastSaved=new Date().toLocaleString();const lsKey=currentUser?STORAGE_KEY+'_'+currentUser.id:STORAGE_KEY;localStorage.setItem(lsKey,JSON.stringify(state));$('lastSaved').textContent=state.lastSaved;syncToCloud();} 
+function exportBackup(){download('shaker-cellar-backup.json',JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2),'application/json')}
 function importBackup(e){const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{try{const data=JSON.parse(r.result); if(!Array.isArray(data.ingredients)||!Array.isArray(data.cocktails)||!Array.isArray(data.menu)){alert('Invalid backup file.');return} state={...state,...data,units:data.units||defaultUnits,defaultLiquidUnit:data.defaultLiquidUnit||'oz',lastSaved:new Date().toLocaleString()};localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render()}catch{alert('Could not import this backup file.')}}; r.readAsText(f); e.target.value=''}
 function download(filename,content,type='text/csv'){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url)}
 
@@ -1584,7 +1675,7 @@ function exportSelectedRecipes(){
 
   var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>'
     +'<meta name="viewport" content="width=device-width,initial-scale=1"/>'
-    +'<title>Legend Bartending — Recipes</title>'
+    +'<title>Shaker &amp; Cellar — Recipes</title>'
     +'<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0}'
@@ -1622,12 +1713,12 @@ function exportSelectedRecipes(){
     +'</style></head><body>'
     +'<div class="wrap">'
     +'<div class="hdr">'
-    +'<div class="hdr-logo"><div class="logo-mark">L</div><div class="brand">Legend Bartending</div></div>'
+    +'<div class="hdr-logo"><div class="logo-mark">L</div><div class="brand">Shaker &amp; Cellar</div></div>'
     +'<div class="menu-label">Recipe Export</div>'
     +'<hr class="hdr-rule"/>'
     +'</div>'
     +cocktailsHtml
-    +'<div class="footer">Legend Bartending &nbsp;·&nbsp; Exported '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div>'
+    +'<div class="footer">Shaker &amp; Cellar &nbsp;·&nbsp; Exported '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div>'
     +'</div></body></html>';
 
   var existing=document.getElementById('menuPdfOverlay');
@@ -2280,10 +2371,10 @@ function wineList(){return Array.isArray(state.wines)?state.wines:[];}
 function wineById(id){return wineList().find(w=>w.id===id);}
 function wineTypeBadge(type){const c=WINE_TYPE_COLOR[type]||'#374151';const b=WINE_TYPE_BG[type]||'#f3f4f6';const l=WINE_TYPE_LABELS[type]||type||'Unknown';return '<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;color:'+c+';background:'+b+'">'+l+'</span>';}
 function wineStatusBadge(s){if(s==='consumed')return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#f3f4f6;color:#6b7280">Consumed</span>';if(s==='gifted')return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#f0fdf4;color:#16a34a">Gifted</span>';if(s==='sold')return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#fffbeb;color:#d97706">Sold</span>';return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#dbeafe;color:#1d4ed8">In Cellar</span>';}
-function newWine(){return {id:'wine_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name:'',producer:'',vintage:'',varietal:'',wineType:'red',country:'',region:'',appellation:'',bottleSize:'750ml',quantity:1,purchasePrice:0,currentValue:0,purchaseDate:'',deliveryDate:'',vendor:'',tastingNotes:'',pairingNotes:'',peakDrinking:'',personalRating:'',status:'in_cellar',storageLocationId:'',bin:'',notes:''};}
+function newWine(){return {id:'wine_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name:'',producer:'',vintage:'',varietal:'',wineType:'red',country:'',region:'',appellation:'',bottleSize:'750ml',quantity:1,purchasePrice:0,currentValue:0,purchaseDate:'',deliveryDate:'',vendor:'',tastingNotes:'',pairingNotes:'',peakDrinking:'',personalRating:'',status:'in_cellar',storageLocationId:'',bin:'',notes:'',consumedDate:'',consumedRating:'',consumedNotes:'',occasion:'',sharedWith:''};}
 function addWine(){if(!Array.isArray(state.wines))state.wines=[];const w=newWine();state.wines.unshift(w);selectedWineId=w.id;saveData();render();}
 function deleteWine(id){if(!confirm('Delete this wine from your cellar?'))return;state.wines=(state.wines||[]).filter(w=>w.id!==id);if(selectedWineId===id)selectedWineId='';saveData();render();}
-function updateWine(id,field,value){const w=wineById(id);if(!w)return;w[field]=value;saveData();if(field==='storageLocationId'||field==='bin')render();}
+function updateWine(id,field,value){const w=wineById(id);if(!w)return;w[field]=value;saveData();if(field==='storageLocationId'||field==='bin'||field==='status')render();}
 function wineSetStorageLoc(id,val){const w=wineById(id);if(!w)return;if(val==='__new__'){const locId=promptAddStorageLoc();if(!locId){render();return;}w.storageLocationId=locId;w.bin='';}else{w.storageLocationId=val;w.bin='';}saveData();render();}
 function wineSetBin(id,locationId,val){const w=wineById(id);if(!w)return;if(val==='__new__'){const bin=promptAddBin(locationId);if(!bin){render();return;}w.bin=bin;}else{w.bin=val;}saveData();render();}
 
@@ -2354,6 +2445,7 @@ function renderCellar(){
     const wineTypeOpts=WINE_TYPES.map(t=>'<option value="'+t+'" '+(sel.wineType===t?'selected':'')+'>'+WINE_TYPE_LABELS[t]+'</option>').join('');
     const statusOpts=[['in_cellar','🍾 In Cellar'],['consumed','Consumed'],['gifted','Gifted'],['sold','Sold']].map(([v,l])=>'<option value="'+v+'" '+(sel.status===v?'selected':'')+'>'+l+'</option>').join('');
     const bottleSizeOpts=['187ml','375ml','500ml','750ml','1L','1.5L','3L','6L','9L','Other'].map(s=>'<option value="'+s+'" '+(sel.bottleSize===s?'selected':'')+'>'+s+'</option>').join('');
+    const occasionOpts=['Birthday','Anniversary','Dinner Party','Holiday Dinner',"New Year's Eve",'Special Celebration','Business Dinner','Wine Tasting','Casual Dinner','Date Night','Restaurant','Other'].map(o=>'<option value="'+o+'" '+(sel.occasion===o?'selected':'')+'>'+o+'</option>').join('');
     const sid=sel.id;
     formHtml='<div class="panel" style="position:sticky;top:16px;max-height:calc(100vh - 130px);overflow-y:auto;">'
       +'<div class="panelHead"><div>'
@@ -2393,12 +2485,23 @@ function renderCellar(){
       // — Notes & Ratings
       +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">Notes & Ratings</div>'
       +'<div class="formgrid">'
-        +'<div><label>Personal Rating (0–100)</label><input class="input" type="number" min="0" max="100" value="'+esc(sel.personalRating||'')+'" placeholder="92" onchange="updateWine(\''+sid+'\',\'personalRating\',this.value)"></div>'
+        +'<div><label>Pre-drink Rating (0–100)</label><input class="input" type="number" min="0" max="100" value="'+esc(sel.personalRating||'')+'" placeholder="92" onchange="updateWine(\''+sid+'\',\'personalRating\',this.value)"></div>'
         +'<div><label>Peak Drinking Window</label><input class="input" value="'+esc(sel.peakDrinking||'')+'" placeholder="2025 – 2035" onchange="updateWine(\''+sid+'\',\'peakDrinking\',this.value)"></div>'
         +'<div class="span2"><label>Tasting Notes</label><textarea class="input" rows="3" style="resize:vertical" onchange="updateWine(\''+sid+'\',\'tastingNotes\',this.value)">'+esc(sel.tastingNotes||'')+'</textarea></div>'
         +'<div class="span2"><label>Food Pairing Notes</label><textarea class="input" rows="2" style="resize:vertical" onchange="updateWine(\''+sid+'\',\'pairingNotes\',this.value)">'+esc(sel.pairingNotes||'')+'</textarea></div>'
         +'<div class="span2"><label>General Notes</label><textarea class="input" rows="2" style="resize:vertical" onchange="updateWine(\''+sid+'\',\'notes\',this.value)">'+esc(sel.notes||'')+'</textarea></div>'
       +'</div>'
+      // — Consumption Log (only when status = consumed)
+      +(sel.status==='consumed'
+        ?'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#991b1b;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #fecaca;">🍷 Consumption Log</div>'
+         +'<div class="formgrid" style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;">'
+           +'<div><label>Date Consumed</label><input class="input" type="text" placeholder="MM/DD/YYYY" value="'+esc(fmtDate(sel.consumedDate||''))+'" oninput="dateMaskInput(this)" onchange="updateWine(\''+sid+'\',\'consumedDate\',parseDateInput(this.value))"></div>'
+           +'<div><label>Post-drink Rating (0–100)</label><input class="input" type="number" min="0" max="100" value="'+esc(sel.consumedRating||'')+'" placeholder="90" onchange="updateWine(\''+sid+'\',\'consumedRating\',this.value)"></div>'
+           +'<div><label>Occasion</label><select class="input" onchange="updateWine(\''+sid+'\',\'occasion\',this.value)"><option value="">— Select —</option>'+occasionOpts+'</select></div>'
+           +'<div><label>Shared With</label><input class="input" value="'+esc(sel.sharedWith||'')+'" placeholder="Family, date night, John & Mary..." onchange="updateWine(\''+sid+'\',\'sharedWith\',this.value)"></div>'
+           +'<div class="span2"><label>Tasting Notes After Drinking</label><textarea class="input" rows="3" style="resize:vertical" placeholder="How did it actually taste? Did it live up to expectations?" onchange="updateWine(\''+sid+'\',\'consumedNotes\',this.value)">'+esc(sel.consumedNotes||'')+'</textarea></div>'
+         +'</div>'
+        :'')
       +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px">'
         +'<button class="delete" style="margin-left:auto" onclick="deleteWine(\''+sid+'\')">✕ Delete Wine</button>'
       +'</div>'
@@ -2739,7 +2842,7 @@ function exportMenuPDF(){
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${esc(menuName)} — Legend Bartending</title>
+<title>${esc(menuName)} — Shaker &amp; Cellar</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -2799,7 +2902,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#f0f2f5;color:#1d2b
   <div class="hdr">
     <div class="hdr-logo">
       <div class="logo-mark">L</div>
-      <div class="brand">Legend Bartending</div>
+      <div class="brand">Shaker &amp; Cellar</div>
     </div>
     <div class="menu-label">Cocktail Menu</div>
     ${menuName && menuName !== 'Cocktail Menu' ? `<div class="menu-name">${esc(menuName)}</div>` : ''}
@@ -2813,7 +2916,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#f0f2f5;color:#1d2b
     </div>` : ''}
   </div>
   ${cocktailsHtml}
-  <div class="footer">Legend Bartending &nbsp;·&nbsp; ${esc(menuName)} &nbsp;·&nbsp; Exported ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
+  <div class="footer">Shaker &amp; Cellar &nbsp;·&nbsp; ${esc(menuName)} &nbsp;·&nbsp; Exported ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
 </div>
 <div class="print-bar">
   <span class="print-hint">💡 Use your browser's Print dialog → "Save as PDF" to share this menu</span>

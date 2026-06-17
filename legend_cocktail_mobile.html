@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="apple-mobile-web-app-title" content="Legend Bar"/>
+  <meta name="apple-mobile-web-app-title" content="Shaker &amp; Cellar"/>
   <meta name="theme-color" content="#1c2437"/>
-  <title>Legend Bartending</title>
+  <title>Shaker &amp; Cellar</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
@@ -64,6 +64,9 @@
     .login-field input::placeholder { color: rgba(255,255,255,.35); }
     .login-btn { width: 100%; padding: 15px; border-radius: var(--radius); border: none; background: var(--amber); color: white; font-size: 17px; font-weight: 700; font-family: inherit; cursor: pointer; margin-top: 4px; }
     .login-error { color: #ff6b6b; font-size: 13px; text-align: center; margin-top: 10px; min-height: 18px; }
+    .pw-wrap { position:relative; margin-bottom:12px; }
+    .pw-wrap input { margin-bottom:0 !important; padding-right:48px !important; }
+    .pw-toggle { position:absolute; right:14px; top:50%; transform:translateY(-50%); background:none; border:none; color:rgba(255,255,255,.45); font-size:20px; cursor:pointer; padding:0; line-height:1; user-select:none; -webkit-user-select:none; }
     .account-btn { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.15); border: none; color: white; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
     /* ===== APP SHELL ===== */
@@ -222,7 +225,7 @@
 <!-- LOGIN -->
 <div id="loginOverlay">
   <div class="login-logo">L</div>
-  <div class="login-title">Legend Bartending</div>
+  <div class="login-title">Shaker &amp; Cellar</div>
   <div class="login-sub">Cocktail Cost & Menu Builder</div>
   <div class="login-box">
     <div class="login-tabs">
@@ -230,10 +233,19 @@
       <button class="login-tab" id="tabRegister" onclick="switchAuthTab('register')">Create Account</button>
     </div>
     <div class="login-field" id="authForm">
+      <div id="authNameWrap" style="display:none">
+        <input type="text" id="authName" placeholder="Your full name" autocomplete="name"/>
+      </div>
       <input type="email" id="authEmail" placeholder="Email address" autocomplete="email"/>
-      <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password"/>
+      <div class="pw-wrap">
+        <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password"/>
+        <button type="button" class="pw-toggle" id="pwEye1" onclick="togglePw('authPassword','pwEye1')">👁</button>
+      </div>
       <div id="authConfirmWrap" style="display:none">
-        <input type="password" id="authConfirm" placeholder="Confirm password"/>
+        <div class="pw-wrap">
+          <input type="password" id="authConfirm" placeholder="Confirm password" autocomplete="new-password"/>
+          <button type="button" class="pw-toggle" id="pwEye2" onclick="togglePw('authConfirm','pwEye2')">👁</button>
+        </div>
       </div>
       <button class="login-btn" id="authSubmitBtn" onclick="submitAuth()">Sign In</button>
       <div class="login-error" id="loginError"></div>
@@ -293,7 +305,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">L</div>
-      <div class="topbar-title">Legend Bartending <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v1.5</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.0</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -475,26 +487,40 @@ function switchAuthTab(mode) {
   authMode = mode;
   document.getElementById('tabSignIn').classList.toggle('active', mode === 'signin');
   document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
+  document.getElementById('authNameWrap').style.display = mode === 'register' ? 'block' : 'none';
   document.getElementById('authConfirmWrap').style.display = mode === 'register' ? 'block' : 'none';
   document.getElementById('authSubmitBtn').textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
   document.getElementById('loginError').textContent = '';
+}
+function togglePw(inputId, btnId) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (inp.type === 'password') { inp.type = 'text'; btn.style.color = 'rgba(255,255,255,.9)'; }
+  else { inp.type = 'password'; btn.style.color = 'rgba(255,255,255,.45)'; }
 }
 async function submitAuth() {
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
   const err = document.getElementById('loginError');
+  err.style.color = '#ff6b6b';
   err.textContent = '';
   if (!email || !password) { err.textContent = 'Please enter email and password.'; return; }
   if (authMode === 'register') {
+    const name = (document.getElementById('authName').value || '').trim();
+    if (!name) { err.textContent = 'Please enter your name.'; return; }
     const confirm = document.getElementById('authConfirm').value;
     if (password !== confirm) { err.textContent = 'Passwords do not match.'; return; }
-    const {error} = await sbClient.auth.signUp({email, password});
+    const {error} = await sbClient.auth.signUp({email, password, options:{data:{name}}});
     if (error) { err.textContent = error.message; return; }
     err.style.color = '#34d399';
-    err.textContent = 'Account created! Check your email to confirm, then sign in.';
+    err.textContent = '✓ Account created! Check your email and click the confirmation link, then come back here and sign in.';
+    switchAuthTab('signin');
   } else {
     const {data, error} = await sbClient.auth.signInWithPassword({email, password});
-    if (error) { err.textContent = 'Invalid email or password.'; return; }
+    if (error) {
+      err.textContent = error.message.includes('not confirmed') ? 'Please confirm your email first — check your inbox for the confirmation link.' : 'Invalid email or password.';
+      return;
+    }
     currentUser = data.user;
     onSignedIn();
   }
@@ -536,9 +562,10 @@ sbClient.auth.onAuthStateChange((event, session) => {
 function openAccountSheet() {
   if (!currentUser) return;
   const isAdmin = currentUser.email === ADMIN_EMAIL;
-  document.getElementById('accountEmail').textContent = currentUser.email;
-  document.getElementById('accountInitial').textContent = (currentUser.email||'?')[0].toUpperCase();
-  document.getElementById('accountRole').textContent = isAdmin ? '⭐ Administrator' : 'User';
+  const userName = currentUser.user_metadata?.name || '';
+  document.getElementById('accountEmail').textContent = userName || currentUser.email;
+  document.getElementById('accountInitial').textContent = (userName || currentUser.email||'?')[0].toUpperCase();
+  document.getElementById('accountRole').textContent = (userName ? currentUser.email + ' · ' : '') + (isAdmin ? '⭐ Administrator' : 'User');
   document.getElementById('adminKeySection').style.display = isAdmin ? 'block' : 'none';
   document.getElementById('accountSheet').classList.remove('hidden');
 }
@@ -574,7 +601,7 @@ async function unlockShareKey() {
 async function saveMyShareKey() {
   const key = (document.getElementById('myShareKey').value||'').toUpperCase().trim();
   if (key.length !== 6) { showSnack('Key must be exactly 6 characters'); return; }
-  const {error} = await sbClient.from('share_keys').upsert({key, owner_id: currentUser.id, label: 'Legend Bartending'}, {onConflict: 'key'});
+  const {error} = await sbClient.from('share_keys').upsert({key, owner_id: currentUser.id, label: 'Shaker &amp; Cellar'}, {onConflict: 'key'});
   if (error) { showSnack('Error: ' + error.message); return; }
   showSnack('Share key saved ✓');
 }
@@ -735,7 +762,7 @@ let wineDraft=null;
 
 function wineList(){return Array.isArray(state.wines)?state.wines:[];}
 function wineById(id){return wineList().find(w=>w.id===id);}
-function newWine(){return {id:'wine_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name:'',producer:'',vintage:'',varietal:'',wineType:'red',country:'',region:'',appellation:'',bottleSize:'750ml',quantity:1,purchasePrice:0,currentValue:0,purchaseDate:'',deliveryDate:'',vendor:'',tastingNotes:'',pairingNotes:'',peakDrinking:'',personalRating:'',status:'in_cellar',storageLocationId:'',bin:'',notes:''};}
+function newWine(){return {id:'wine_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name:'',producer:'',vintage:'',varietal:'',wineType:'red',country:'',region:'',appellation:'',bottleSize:'750ml',quantity:1,purchasePrice:0,currentValue:0,purchaseDate:'',deliveryDate:'',vendor:'',tastingNotes:'',pairingNotes:'',peakDrinking:'',personalRating:'',status:'in_cellar',storageLocationId:'',bin:'',notes:'',consumedDate:'',consumedRating:'',consumedNotes:'',occasion:'',sharedWith:''};}
 function openWineSheet(id){
   if(id){const found=wineById(id);if(!found)return;wineDraft=JSON.parse(JSON.stringify(found));document.getElementById('wineSheetTitle').textContent='Edit Wine';}
   else{wineDraft=newWine();document.getElementById('wineSheetTitle').textContent='Add Wine';}
@@ -762,6 +789,7 @@ function renderWineSheetBody(){
   const typeOpts=WINE_TYPES_M.map(t=>'<option value="'+t+'" '+(w.wineType===t?'selected':'')+'>'+WINE_TYPE_LABELS_M[t]+'</option>').join('');
   const statusOpts=[['in_cellar','🍾 In Cellar'],['consumed','Consumed'],['gifted','Gifted'],['sold','Sold']].map(([v,l])=>'<option value="'+v+'" '+(w.status===v?'selected':'')+'>'+l+'</option>').join('');
   const bottleOpts=['187ml','375ml','500ml','750ml','1L','1.5L','3L','6L','9L'].map(s=>'<option value="'+s+'" '+(w.bottleSize===s?'selected':'')+'>'+s+'</option>').join('');
+  const occasionOpts=['Birthday','Anniversary','Dinner Party','Holiday Dinner',"New Year's Eve",'Special Celebration','Business Dinner','Wine Tasting','Casual Dinner','Date Night','Restaurant','Other'].map(o=>'<option value="'+o+'" '+(w.occasion===o?'selected':'')+'>'+o+'</option>').join('');
   document.getElementById('wineSheetBody').innerHTML=''
     +'<button type="button" onclick="openBarcodeScanner(\'wine-draft\')" style="width:100%;padding:10px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;font-size:14px;font-weight:600;color:#92400e;cursor:pointer;margin-bottom:12px;font-family:inherit;">📷 Scan Barcode to Auto-fill</button>'
     +'<div class="field"><label>Name / Label *</label><input type="text" value="'+esc(w.name)+'" oninput="wineDraft.name=this.value" placeholder="e.g. Opus One"/></div>'
@@ -784,7 +812,7 @@ function renderWineSheetBody(){
       +'<div class="field"><label>Purchase Price/btl $</label><input type="number" min="0" step="0.01" value="'+Number(w.purchasePrice||0)+'" oninput="wineDraft.purchasePrice=Number(this.value)"/></div>'
       +'<div class="field"><label>Current Value/btl $</label><input type="number" min="0" step="0.01" value="'+Number(w.currentValue||0)+'" oninput="wineDraft.currentValue=Number(this.value)" placeholder="Market value"/></div>'
     +'</div>'
-    +'<div class="field"><label>Status</label><select onchange="wineDraft.status=this.value">'+statusOpts+'</select></div>'
+    +'<div class="field"><label>Status</label><select onchange="wineDraft.status=this.value;renderWineSheetBody()">'+statusOpts+'</select></div>'
     +'<div class="field-row">'
       +'<div class="field"><label>Purchase Date</label><input type="text" placeholder="MM/DD/YYYY" value="'+esc(fmtDate(w.purchaseDate||''))+'" oninput="dateMaskInput(this);wineDraft.purchaseDate=parseDateInput(this.value)"/></div>'
       +'<div class="field"><label>Delivery Date</label><input type="text" placeholder="MM/DD/YYYY" value="'+esc(fmtDate(w.deliveryDate||''))+'" oninput="dateMaskInput(this);wineDraft.deliveryDate=parseDateInput(this.value)"/></div>'
@@ -793,12 +821,24 @@ function renderWineSheetBody(){
     +'<div class="field"><label>Storage Location</label><select onchange="mobileWineLocChange(this.value)"><option value="">— None —</option>'+locOpts+'<option value="__new__">➕ Add new location...</option></select></div>'
     +'<div class="field"><label>Bin / Space</label><select '+(locId?'':'disabled')+' onchange="mobileWineBinChange(this.value)"><option value="">— None —</option>'+binOpts+'<option value="__new__">➕ Add new bin...</option></select></div>'
     +'<div class="field-row">'
-      +'<div class="field"><label>Rating (0–100)</label><input type="number" min="0" max="100" value="'+esc(w.personalRating||'')+'" oninput="wineDraft.personalRating=this.value" placeholder="92"/></div>'
+      +'<div class="field"><label>Pre-drink Rating (0–100)</label><input type="number" min="0" max="100" value="'+esc(w.personalRating||'')+'" oninput="wineDraft.personalRating=this.value" placeholder="92"/></div>'
       +'<div class="field"><label>Peak Drinking</label><input type="text" value="'+esc(w.peakDrinking||'')+'" oninput="wineDraft.peakDrinking=this.value" placeholder="2025–2035"/></div>'
     +'</div>'
     +'<div class="field"><label>Tasting Notes</label><textarea oninput="wineDraft.tastingNotes=this.value">'+esc(w.tastingNotes||'')+'</textarea></div>'
     +'<div class="field"><label>Food Pairing Notes</label><textarea oninput="wineDraft.pairingNotes=this.value">'+esc(w.pairingNotes||'')+'</textarea></div>'
     +'<div class="field"><label>General Notes</label><textarea oninput="wineDraft.notes=this.value">'+esc(w.notes||'')+'</textarea></div>'
+    +(w.status==='consumed'
+      ?'<div style="margin:12px 0 4px;padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;">'
+        +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#991b1b;margin-bottom:10px;">🍷 Consumption Log</div>'
+        +'<div class="field-row">'
+          +'<div class="field"><label>Date Consumed</label><input type="text" placeholder="MM/DD/YYYY" value="'+esc(fmtDate(w.consumedDate||''))+'" oninput="dateMaskInput(this);wineDraft.consumedDate=parseDateInput(this.value)"/></div>'
+          +'<div class="field"><label>Post-drink Rating (0–100)</label><input type="number" min="0" max="100" value="'+esc(w.consumedRating||'')+'" oninput="wineDraft.consumedRating=this.value" placeholder="90"/></div>'
+        +'</div>'
+        +'<div class="field"><label>Occasion</label><select onchange="wineDraft.occasion=this.value"><option value="">— Select —</option>'+occasionOpts+'</select></div>'
+        +'<div class="field"><label>Shared With</label><input type="text" value="'+esc(w.sharedWith||'')+'" oninput="wineDraft.sharedWith=this.value" placeholder="e.g. Family, Date night, John & Mary"/></div>'
+        +'<div class="field"><label>Tasting Notes After Drinking</label><textarea oninput="wineDraft.consumedNotes=this.value" placeholder="How did it actually taste? Did it live up to expectations?">'+esc(w.consumedNotes||'')+'</textarea></div>'
+      +'</div>'
+      :'')
     +(w.id&&wineById(w.id)?'<button class="btn btn-danger btn-full" onclick="deleteWine(\''+w.id+'\')">Delete Wine</button>':'');
 }
 
@@ -1705,7 +1745,7 @@ function exportMenuPDF() {
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Legend Bartending — Cocktail Menu</title>
+<title>Shaker &amp; Cellar — Cocktail Menu</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1764,7 +1804,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#f0f2f5;color:#1d2b
   <div class="hdr">
     <div class="hdr-logo">
       <div class="logo-mark">L</div>
-      <div class="brand">Legend Bartending</div>
+      <div class="brand">Shaker &amp; Cellar</div>
     </div>
     <div class="menu-label">Cocktail Menu</div>
     <hr class="hdr-rule"/>
@@ -1776,7 +1816,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#f0f2f5;color:#1d2b
     </div>` : ''}
   </div>
   ${cocktailsHtml}
-  <div class="footer">Legend Bartending &nbsp;·&nbsp; Exported ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
+  <div class="footer">Shaker &amp; Cellar &nbsp;·&nbsp; Exported ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
 </div>
 <div class="print-bar">
   <span class="print-hint">💡 Tap "Save as PDF" to share via text or email</span>
@@ -1791,7 +1831,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#f0f2f5;color:#1d2b
   if (!win) {
     // Popup blocked — fall back to direct download
     const a = document.createElement('a');
-    a.href = url; a.download = 'legend-cocktail-menu.html'; a.click();
+    a.href = url; a.download = 'shaker-cellar-menu.html'; a.click();
     showSnack('Saved as HTML — open in browser to save as PDF');
   }
   setTimeout(() => URL.revokeObjectURL(url), 10000);
@@ -1821,7 +1861,7 @@ function buildShoppingText() {
   const ingUsage = buildShoppingFromMenu();
   const im = ingMap();
   const total = Object.entries(ingUsage).reduce((s,[id,u]) => { const i=im[id]; return s+(i?u.qty*costPerUnit(i):0); }, 0);
-  let txt = 'LEGEND BARTENDING — SHOPPING LIST\n';
+  let txt = 'SHAKER & CELLAR — SHOPPING LIST\n';
   txt += `Generated: ${new Date().toLocaleDateString()}\n`;
   txt += `Est. Total Cost: ${money(total)}\n`;
   txt += '='.repeat(40) + '\n\n';
@@ -1952,7 +1992,7 @@ function exportBackup() {
   const blob = new Blob([data], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'legend-backup.json'; a.click();
+  a.href = url; a.download = 'shaker-cellar-backup.json'; a.click();
   URL.revokeObjectURL(url);
 }
 
