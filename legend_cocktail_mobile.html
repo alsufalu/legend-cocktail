@@ -358,6 +358,9 @@
     <div class="sheet-handle"></div>
     <div class="sheet-header">
       <span class="sheet-title" id="cocktailSheetTitle">Cocktail</span>
+      <button onclick="shareRecipe()" title="Share Recipe" style="background:none;border:none;cursor:pointer;padding:4px 8px;font-size:20px;line-height:1;color:#0070f2;margin-left:auto;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+      </button>
       <button class="sheet-close" onclick="closeCocktailSheet()">✕</button>
     </div>
     <div class="sheet-body" id="cocktailSheetBody"></div>
@@ -1022,6 +1025,101 @@ function openCocktailSheet(id) {
   document.getElementById('cocktailSheet').classList.remove('hidden');
 }
 function closeCocktailSheet() { document.getElementById('cocktailSheet').classList.add('hidden'); cocktailDraft = null; }
+
+async function shareRecipe() {
+  const c = cocktailDraft;
+  if (!c) return;
+  const imap = ingMap();
+  const unitMap = {};
+  (state.units || []).forEach(u => unitMap[u.id] = u.abbr);
+
+  const ingRows = (c.recipe || []).map(r => {
+    const ing = imap[r.ingredientId];
+    const name = ing ? ing.name : (r.ingredientId || '—');
+    const qty = r.qty || '';
+    const unit = unitMap[r.unit] || r.unit || '';
+    return `<li><span class="ing-name">${esc(name)}</span><span class="ing-qty">${qty}${unit ? ' ' + unit : ''}</span></li>`;
+  }).join('');
+
+  const metaItems = [
+    c.glass  ? `<div class="m"><div class="ml">Glass</div><div class="mv">${esc(c.glass)}</div></div>` : '',
+    c.served ? `<div class="m"><div class="ml">Served</div><div class="mv">${esc(c.served)}</div></div>` : '',
+    c.build  ? `<div class="m"><div class="ml">Method</div><div class="mv">${esc(c.build)}</div></div>` : '',
+  ].filter(Boolean).join('');
+
+  const sections = [
+    ingRows ? `<h2>Ingredients</h2><ul class="ings">${ingRows}</ul>` : '',
+    c.garnish             ? `<h2>Garnish</h2><p class="note">${esc(c.garnish)}</p>` : '',
+    c.notes               ? `<h2>Notes</h2><p class="note">${esc(c.notes)}</p>` : '',
+    c.specialInstructions ? `<h2>Special Instructions</h2><p class="note">${esc(c.specialInstructions)}</p>` : '',
+  ].filter(Boolean).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(c.name)}</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;color:#1d2b3a;background:#fff}
+h1{font-size:26px;font-weight:800;margin:0 0 4px}
+.cat{color:#8492a6;font-size:13px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:18px}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.m{background:#f0f2f5;border-radius:8px;padding:8px 14px}
+.ml{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#8492a6;margin-bottom:2px}
+.mv{font-size:13px;font-weight:700;color:#1d2b3a}
+h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#8492a6;margin:0 0 8px;border-bottom:1px solid #e2e8f0;padding-bottom:5px}
+.ings{list-style:none;padding:0;margin:0 0 22px}
+.ings li{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f2f5;font-size:15px}
+.ings li:last-child{border-bottom:none}
+.ing-name{font-weight:500}
+.ing-qty{color:#d97706;font-weight:700;font-size:14px;white-space:nowrap;margin-left:12px}
+.note{background:#f9fafb;border-radius:8px;padding:12px 14px;font-size:14px;line-height:1.6;margin-bottom:20px;white-space:pre-wrap}
+.footer{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#8492a6;text-align:center}
+@media print{body{padding:0}}
+</style></head><body>
+<h1>${esc(c.name)}</h1>
+${c.category ? `<div class="cat">${esc(c.category)}</div>` : ''}
+${metaItems ? `<div class="meta">${metaItems}</div>` : ''}
+${sections}
+<div class="footer">Shaker &amp; Cellar</div>
+</body></html>`;
+
+  const filename = (c.name || 'recipe').replace(/[^a-z0-9]/gi, '-').toLowerCase() + '.html';
+
+  // Try file share (iOS 15+ shows Print, Mail, Messages etc.)
+  if (navigator.canShare) {
+    const file = new File([html], filename, { type: 'text/html' });
+    if (navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: c.name }); return; }
+      catch(e) { if (e.name === 'AbortError') return; }
+    }
+  }
+  // Fallback: share as plain text
+  if (navigator.share) {
+    const lines = [
+      c.name.toUpperCase(),
+      c.category || '',
+      c.glass  ? `Glass: ${c.glass}`  : '',
+      c.served ? `Served: ${c.served}` : '',
+      c.build  ? `Method: ${c.build}`  : '',
+      '',
+      'INGREDIENTS',
+      ...(c.recipe || []).map(r => {
+        const ing = imap[r.ingredientId];
+        const u = unitMap[r.unit] || r.unit || '';
+        return `• ${r.qty || ''}${u ? ' ' + u : ''} ${ing ? ing.name : ''}`.trim();
+      }),
+      c.garnish             ? `\nGarnish: ${c.garnish}` : '',
+      c.notes               ? `\nNotes: ${c.notes}` : '',
+      c.specialInstructions ? `\nSpecial Instructions: ${c.specialInstructions}` : '',
+      '\n— Shaker & Cellar',
+    ].filter(Boolean).join('\n');
+    try { await navigator.share({ title: c.name, text: lines }); } catch(e) {}
+    return;
+  }
+  // Last fallback: download file
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 function renderCocktailSheet() {
   const c = cocktailDraft;
@@ -2097,33 +2195,6 @@ async function bsToggleTorch() {
 }
 
 // ---- Photo scan — ZXing ----
-async function bsHandlePhoto(input) {
-  const file = input.files[0];
-  if (!file) return;
-  try { input.value = ''; } catch(e) {}
-  const st = document.getElementById('bsSheetStatus');
-  st.textContent = '⏳ Reading barcode…';
-
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = objectUrl; });
-    const reader = new ZXing.BrowserMultiFormatReader();
-    const result = await reader.decodeFromImageElement(img);
-    URL.revokeObjectURL(objectUrl);
-    const text = result.getText();
-    const clean = text.replace(/[^0-9]/g, '') || text;
-    if (clean.length >= 6) {
-      st.textContent = '✓ Scanned: ' + clean + ' — looking up…';
-      await bsLookup(clean);
-    } else {
-      st.textContent = '⚠ No barcode found. Enter the number below.';
-    }
-  } catch(e) {
-    URL.revokeObjectURL(objectUrl);
-    st.textContent = '⚠ No barcode found in photo. Make sure the barcode is clear and well-lit, or enter the number below.';
-  }
-}
 
 function bsSheetGo() {
   const barcode = (document.getElementById('bsSheetBarcode').value || '').trim().replace(/\D/g, '');
@@ -2581,11 +2652,6 @@ function bsApply(barcode, p) {
   <!-- Scan buttons -->
   <div id="bsScanButtons" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;">
     <button onclick="bsStartLive()" style="width:100%;padding:14px;background:#0070f2;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">🎥 Scan Barcode with Camera</button>
-    <!-- input inside label — most reliable iOS trigger -->
-    <label style="display:block;width:100%;padding:13px;background:#f0f2f5;border:none;border-radius:10px;font-size:15px;font-weight:600;color:#1d2b3a;cursor:pointer;font-family:inherit;box-sizing:border-box;text-align:center;">
-      📷 Take Photo of Barcode
-      <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="bsHandlePhoto(this)">
-    </label>
   </div>
 
   <!-- Status -->
