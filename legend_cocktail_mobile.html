@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-title" content="Shaker &amp; Cellar"/>
   <meta name="theme-color" content="#1c2437"/>
   <title>Shaker &amp; Cellar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍸</text></svg>"/>
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍸</text></svg>"/>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
@@ -1358,6 +1360,15 @@ function newMenu() {
 function openMenuEdit(idx) {
   menuEditIdx = idx;
   menuDetailTab = 'cocktails';
+  // Migrate old menus that stored event setup globally in state.menuSetup
+  const m = state.savedMenus[idx];
+  if (m && !m.menuSetup) {
+    m.menuSetup = {
+      guests: state.menuSetup?.guests || 0,
+      drinksPerPerson: state.menuSetup?.drinksPerPerson || 3
+    };
+    saveData();
+  }
   render();
 }
 
@@ -2411,7 +2422,18 @@ function showShoppingItemDetail(id, qty, unit) {
   // Convert recipe qty to purchase unit qty to calculate bottles needed
   const qtyInPurchaseUnit = convertQty(qty, unit, i.unit);
   const bottlesNeeded = pkgSize > 0 ? Math.ceil(qtyInPurchaseUnit / pkgSize) : '—';
-  const usedIn = state.cocktails.filter(c => (c.recipe||[]).some(r => r.ingredientId === id));
+  // Only show cocktails from the current menu that use this ingredient
+  const menuItems = Array.isArray(state.menu) ? state.menu : [];
+  const usedIn = menuItems.reduce((acc, m) => {
+    const c = getMenuCocktail(m); if (!c) return acc;
+    const line = (c.recipe||[]).find(r => r.ingredientId === id); if (!line) return acc;
+    const servings = Number(m.servings || 0);
+    const lineQty = Number(line.qty || 0);
+    const lineUnit = line.unit || 'oz';
+    const qtyForMenu = lineQty * servings;
+    acc.push({c, servings, lineQty, lineUnit, qtyForMenu});
+    return acc;
+  }, []);
   const el = document.getElementById('mainContent');
   el.innerHTML = `
     <div style="background:var(--nav-bg);padding:20px 16px 24px;padding-top:calc(20px + env(safe-area-inset-top));">
@@ -2466,13 +2488,20 @@ function showShoppingItemDetail(id, qty, unit) {
       ${usedIn.length > 0 ? `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
         <div style="padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
-          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);">Used In ${usedIn.length} Cocktail${usedIn.length!==1?'s':''}</span>
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);">Used In Menu (${usedIn.length} Cocktail${usedIn.length!==1?'s':''})</span>
         </div>
-        ${usedIn.map((c,idx) => `
-          <div style="padding:12px 14px;${idx<usedIn.length-1?'border-bottom:1px solid var(--border);':''}display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:14px;font-weight:600;color:var(--ink);">${esc(c.name)}</span>
-            <span style="font-size:13px;color:var(--amber);font-weight:700;">${money(cocktailCost(c))}</span>
-          </div>`).join('')}
+        ${usedIn.map(({c, servings, lineQty, lineUnit, qtyForMenu}, idx) => {
+          const unitAbbr2 = state.units.find(u=>u.id===lineUnit)?.abbr || lineUnit;
+          return `<div style="padding:12px 14px;${idx<usedIn.length-1?'border-bottom:1px solid var(--border);':''}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:14px;font-weight:600;color:var(--ink);">${esc(c.name)}</span>
+              <span style="font-size:13px;color:var(--amber);font-weight:700;">${money(cocktailCost(c))}/drink</span>
+            </div>
+            <div style="font-size:12px;color:var(--ink3);">
+              ${lineQty} ${unitAbbr2}/serving × ${servings} servings = <b style="color:var(--blue);">${qtyForMenu.toFixed(2)} ${unitAbbr2} total</b>
+            </div>
+          </div>`;
+        }).join('')}
       </div>` : ''}
 
     </div>
