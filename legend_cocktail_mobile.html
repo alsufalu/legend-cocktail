@@ -2003,8 +2003,8 @@ function openBarcodeScanner(target) {
   _bsScanTarget = target;
   document.getElementById('bsSheetStatus').textContent = '';
   document.getElementById('bsSheetBarcode').value = '';
-  document.getElementById('bsLiveWrap').style.display = 'none';
-  document.getElementById('bsScanButtons').style.display = 'flex';
+  const lw = document.getElementById('bsLiveWrap'); if (lw) lw.style.display = 'none';
+  const sb = document.getElementById('bsScanButtons'); if (sb) sb.style.display = 'flex';
   document.getElementById('bsScannerSheet').style.display = 'block';
 }
 
@@ -2573,7 +2573,7 @@ function bsApply(barcode, p) {
   <div style="font-size:12px;color:#8492a6;margin-bottom:14px;">Scan live or take a photo of the barcode</div>
 
   <!-- Scan buttons -->
-  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;">
+  <div id="bsScanButtons" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;">
     <button onclick="bsStartLive()" style="width:100%;padding:14px;background:#0070f2;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">🎥 Scan Barcode with Camera</button>
     <!-- input inside label — most reliable iOS trigger -->
     <label style="display:block;width:100%;padding:13px;background:#f0f2f5;border:none;border-radius:10px;font-size:15px;font-weight:600;color:#1d2b3a;cursor:pointer;font-family:inherit;box-sizing:border-box;text-align:center;">
