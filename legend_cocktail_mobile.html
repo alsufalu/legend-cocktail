@@ -306,7 +306,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">L</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.0</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.1</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -331,6 +331,7 @@
     <button class="nav-btn" data-tab="recipes" onclick="setTab('recipes')"><span class="nav-icon">🍹</span><span class="nav-label">Recipes</span></button>
     <button class="nav-btn" data-tab="menu" onclick="setTab('menu')"><span class="nav-icon">📋</span><span class="nav-label">Menu</span></button>
     <button class="nav-btn" data-tab="shopping" onclick="setTab('shopping')"><span class="nav-icon">🛒</span><span class="nav-label">Shopping</span></button>
+    <button class="nav-btn" data-tab="batching" onclick="setTab('batching')"><span class="nav-icon">🧪</span><span class="nav-label">Batch</span></button>
     <button class="nav-btn" data-tab="cellar" onclick="setTab('cellar')"><span class="nav-icon">🍷</span><span class="nav-label">Cellar</span></button>
     <button class="nav-btn" data-tab="settings" onclick="setTab('settings')"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></button>
   </div>
@@ -688,6 +689,7 @@ function render() {
   else if (currentTab === 'recipes') el.innerHTML = renderRecipes();
   else if (currentTab === 'menu') el.innerHTML = renderMenu();
   else if (currentTab === 'shopping') el.innerHTML = renderShopping();
+  else if (currentTab === 'batching') el.innerHTML = renderBatching();
   else if (currentTab === 'cellar') el.innerHTML = renderCellar();
   else if (currentTab === 'settings') el.innerHTML = renderSettings();
 }
@@ -1295,298 +1297,434 @@ function menuAvgAbv() {
   return totalVol > 0 ? (totalAlc/totalVol*100) : null;
 }
 
-// ===== MENU STATE =====
-let menuTab = 'setup'; // 'setup' | 'cocktails' | 'summary'
+// ===== MENU BUILDER — Redesigned =====
+let menuEditIdx = null;      // null = list view, number = editing savedMenus[idx]
+let menuDetailTab = 'cocktails'; // 'cocktails' | 'event' | 'summary'
 
 function renderMenu() {
-  const tabs = `
-    <div style="display:flex;gap:4px;padding:0 16px 14px;">
-      <button style="flex:1;padding:9px;border-radius:8px;border:none;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:${menuTab==='setup'?'var(--blue)':'var(--surface2)'};color:${menuTab==='setup'?'white':'var(--ink3)'};" onclick="menuTab='setup';render()">⚙️ Setup</button>
-      <button style="flex:1;padding:9px;border-radius:8px;border:none;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:${menuTab==='cocktails'?'var(--blue)':'var(--surface2)'};color:${menuTab==='cocktails'?'white':'var(--ink3)'};" onclick="menuTab='cocktails';render()">📋 Current Menu</button>
-      <button style="flex:1;padding:9px;border-radius:8px;border:none;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:${menuTab==='summary'?'var(--blue)':'var(--surface2)'};color:${menuTab==='summary'?'white':'var(--ink3)'};" onclick="menuTab='summary';render()">📊 Summary</button>
-    </div>`;
-
-  let content = '';
-
-  if (menuTab === 'setup') {
-    content = renderMenuSetup();
-  } else if (menuTab === 'cocktails') {
-    content = renderMenuCocktails();
-  } else {
-    content = renderMenuSummary();
-  }
-
-  return `
-    <div class="page-header">
-      <div class="page-title">Menu Builder</div>
-    </div>
-    <div style="padding:0 16px 4px;">${tabs}</div>
-    ${content}
-  `;
+  return menuEditIdx !== null ? renderMenuDetail() : renderMenuList();
 }
 
-function renderMenuSetup() {
-  const guests = state.menuSetup?.guests || 0;
-  const drinksPerPerson = state.menuSetup?.drinksPerPerson || 3;
-  const totalServings = guests * drinksPerPerson;
-  const savedMenus = Array.isArray(state.savedMenus) ? state.savedMenus : [];
+function renderMenuList() {
+  const menus = Array.isArray(state.savedMenus) ? state.savedMenus : [];
+  const shareIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
 
-  return `
-    <div style="padding:0 16px 16px;">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow-sm);">
-        <div style="font-size:14px;font-weight:700;color:var(--ink);margin-bottom:12px;">Event Details</div>
-        <div class="field-row" style="margin-bottom:12px;">
-          <div class="field">
-            <label>Total Guests</label>
-            <input type="number" min="0" value="${guests}" oninput="if(!state.menuSetup)state.menuSetup={};state.menuSetup.guests=Number(this.value);updateMenuSetupCalc()"/>
+  const cards = menus.length === 0
+    ? `<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No menus yet</div><div class="empty-sub">Tap + New to build your first menu</div></div>`
+    : menus.map((m, idx) => {
+        const itemCount = (m.items || []).length;
+        const setup = m.menuSetup || {};
+        const totalServings = (setup.guests || 0) * (setup.drinksPerPerson || 3);
+        const totalCost = (m.items || []).reduce((s, item) => {
+          const c = state.cocktails.find(x => x.id === (item.cocktailId || item.id));
+          return s + (c ? cocktailCost(c) * Number(item.servings || 0) : 0);
+        }, 0);
+        return `<div class="card" onclick="openMenuEdit(${idx})" style="padding:14px 16px;">
+          <div class="card-body">
+            <div class="card-name">${esc(m.name || 'Menu ' + (idx + 1))}</div>
+            <div class="card-sub">${itemCount} cocktail${itemCount !== 1 ? 's' : ''}${totalServings > 0 ? ' · ' + totalServings + ' servings' : ''}${totalCost > 0 ? ' · Est. ' + money(totalCost) : ''}${m.updatedAt ? ' · ' + m.updatedAt : ''}</div>
           </div>
-          <div class="field">
-            <label>Drinks / Person</label>
-            <input type="number" min="1" step="0.5" value="${drinksPerPerson}" oninput="if(!state.menuSetup)state.menuSetup={};state.menuSetup.drinksPerPerson=Number(this.value);updateMenuSetupCalc()"/>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+            <button onclick="event.stopPropagation();shareMenuByIdx(${idx})" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--blue);" title="Share">${shareIcon}</button>
+            <button class="btn-icon red" onclick="event.stopPropagation();deleteMenuByIdx(${idx})" title="Delete">✕</button>
           </div>
-        </div>
-        <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:28px;font-weight:800;color:var(--amber);" id="totalServingsDisplay">${totalServings}</div>
-          <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">Total Servings Needed</div>
-        </div>
-      </div>
-      <button class="btn btn-primary btn-full" style="margin-bottom:12px;" onclick="applyServingsToMenu()">Apply to Cocktails →</button>
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <button class="btn btn-secondary btn-sm" onclick="saveCurrentMenu()">💾 Save Menu</button>
-        <button class="btn btn-secondary btn-sm" onclick="generateShoppingFromMenu()">🛒 To Shopping</button>
-        <button class="btn btn-secondary btn-sm" onclick="exportMenuPDF()" style="font-size:16px;padding:8px 12px;" title="Export Menu PDF">📄</button>
-      </div>
-      ${savedMenus.length > 0 ? `
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px;">Saved Menus</div>
-        ${savedMenus.map((sm,idx) => `
-          <div class="saved-menu-card" onclick="loadSavedMenu(${idx})">
-            <div style="flex:1;min-width:0;">
-              <div class="smc-name">${esc(sm.name||'Menu '+(idx+1))}</div>
-              <div class="smc-meta">${(sm.items||[]).length} cocktails · ${sm.updatedAt||''}</div>
-            </div>
-            <button class="btn-icon" style="flex-shrink:0;color:var(--ink3);" title="Duplicate" onclick="event.stopPropagation();duplicateSavedMenu(${idx})">⧉</button>
-            <button class="btn-icon red" style="flex-shrink:0" onclick="event.stopPropagation();deleteSavedMenu(${idx})">✕</button>
-          </div>`).join('')}
-      ` : ''}
-    </div>`;
-}
-
-function updateMenuSetupCalc() {
-  const g = state.menuSetup?.guests || 0;
-  const d = state.menuSetup?.drinksPerPerson || 3;
-  const el = document.getElementById('totalServingsDisplay');
-  if (el) el.textContent = g * d;
-}
-
-function applyServingsToMenu() {
-  const total = (state.menuSetup?.guests||0) * (state.menuSetup?.drinksPerPerson||3);
-  if (total === 0) { showSnack('Enter guests and drinks/person first'); return; }
-  if (!Array.isArray(state.menu) || state.menu.length === 0) { showSnack('Add cocktails first in the Cocktails tab'); return; }
-  // Distribute servings by percentage
-  state.menu.forEach(m => {
-    const pct = Number(m.pct||0) / 100;
-    m.servings = Math.round(total * pct);
-  });
-  saveData(); menuTab = 'cocktails'; render();
-  showSnack('Servings applied ✓');
-}
-
-function renderMenuCocktails() {
-  const menuItems = Array.isArray(state.menu) ? state.menu : [];
-  const totalPct = menuItems.reduce((s,m) => s + Number(m.pct||0), 0);
-  const pctColor = Math.abs(totalPct - 100) < 0.01 ? 'var(--green)' : totalPct > 100 ? 'var(--red)' : 'var(--amber)';
-  const totalServings = (state.menuSetup?.guests||0) * (state.menuSetup?.drinksPerPerson||3);
-
-  const rows = menuItems.length === 0
-    ? `<div class="empty"><div class="empty-icon">🍹</div><div class="empty-title">No cocktails yet</div><div class="empty-sub">Tap + Add to add cocktails to your menu</div></div>`
-    : menuItems.map((m, idx) => {
-        const c = getMenuCocktail(m);
-        const cost = cocktailCost(c||{recipe:[]});
-        const qty = totalServings > 0 ? Math.round(totalServings * Number(m.pct||0) / 100) : Number(m.servings||0);
-        return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px;box-shadow:var(--shadow-sm);">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-            <div style="flex:1;font-size:15px;font-weight:600;">${esc(c?c.name:(m.cocktailName||'Unknown'))}</div>
-            <span style="font-size:12px;color:var(--amber);font-weight:700;">${money(cost)}/drink</span>
-            <button class="btn-icon red" onclick="state.menu.splice(${idx},1);saveData();render()">✕</button>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label>% of Crowd</label>
-              <input type="number" min="0" max="100" step="1" value="${m.pct||0}"
-                onchange="state.menu[${idx}].pct=Number(this.value);state.menu[${idx}].servings=Math.round((state.menuSetup?.guests||0)*(state.menuSetup?.drinksPerPerson||3)*Number(this.value)/100);saveData();render()"
-                style="text-align:center;font-size:18px;font-weight:700;"/>
-            </div>
-            <div class="field">
-              <label>Qty</label>
-              <div style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);font-size:18px;font-weight:800;color:var(--blue);text-align:center;">${qty}</div>
-            </div>
-          </div>
-          <div style="font-size:12px;color:var(--ink3);">${money(cost * qty)} total · ${money(cost)}/drink</div>
         </div>`;
       }).join('');
 
   return `
-    <div style="padding:0 16px 16px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="font-size:13px;color:var(--ink2);">Total allocation: <b style="color:${pctColor}">${totalPct.toFixed(0)}%</b>${totalServings>0?` · ${totalServings} total drinks`:''}</div>
-        <button class="page-action" onclick="addMenuItem()">+ Add</button>
+    <div class="page-header">
+      <div class="page-title">Menus</div>
+      <button class="page-action" onclick="newMenu()">+ New</button>
+    </div>
+    <div class="card-list" style="padding:0 16px 80px;">${cards}</div>`;
+}
+
+function newMenu() {
+  if (!Array.isArray(state.savedMenus)) state.savedMenus = [];
+  const name = prompt('Menu name:', 'Event Menu ' + new Date().toLocaleDateString());
+  if (!name) return;
+  const newM = {
+    id: uid(), name, items: [],
+    menuSetup: {guests: 0, drinksPerPerson: 3},
+    createdAt: new Date().toLocaleDateString(),
+    updatedAt: new Date().toLocaleDateString()
+  };
+  state.savedMenus.push(newM);
+  menuEditIdx = state.savedMenus.length - 1;
+  menuDetailTab = 'cocktails';
+  saveData(); render();
+}
+
+function openMenuEdit(idx) {
+  menuEditIdx = idx;
+  menuDetailTab = 'cocktails';
+  render();
+}
+
+function closeMenuEdit() {
+  menuEditIdx = null;
+  render();
+}
+
+function deleteMenuByIdx(idx) {
+  if (!confirm('Delete "' + (state.savedMenus[idx]?.name || 'this menu') + '"?')) return;
+  state.savedMenus.splice(idx, 1);
+  if (menuEditIdx !== null && menuEditIdx >= state.savedMenus.length) menuEditIdx = null;
+  saveData(); render();
+}
+
+function renderMenuDetail() {
+  const m = state.savedMenus[menuEditIdx];
+  if (!m) { menuEditIdx = null; return renderMenuList(); }
+  const shareIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
+
+  const tabBtn = (key, label) =>
+    `<button onclick="menuDetailTab='${key}';render()" style="flex:1;padding:9px;border-radius:8px;border:none;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;background:${menuDetailTab===key?'var(--blue)':'var(--surface2)'};color:${menuDetailTab===key?'white':'var(--ink3)'};">${label}</button>`;
+
+  let content = '';
+  if (menuDetailTab === 'cocktails') content = renderMenuDetailCocktails(m);
+  else if (menuDetailTab === 'event') content = renderMenuDetailEvent(m);
+  else content = renderMenuDetailSummary(m);
+
+  return `
+    <div class="page-header">
+      <button onclick="closeMenuEdit()" style="background:none;border:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--blue);padding:0;white-space:nowrap;">← Menus</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="shareMenuDraft()" style="background:none;border:none;cursor:pointer;padding:4px 6px;color:var(--blue);" title="Share">${shareIcon}</button>
+        <button class="btn btn-secondary btn-sm" onclick="sendMenuToShopping()">🛒 Shop</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportMenuPDFFromEdit()">📄</button>
       </div>
-      ${rows}
+    </div>
+    <div style="padding:0 16px 16px;">
+      <input type="text" value="${esc(m.name || '')}" placeholder="Menu name…"
+        oninput="state.savedMenus[${menuEditIdx}].name=this.value;state.savedMenus[${menuEditIdx}].updatedAt=new Date().toLocaleDateString();saveData()"
+        style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:17px;font-weight:700;color:var(--ink);box-sizing:border-box;margin-bottom:14px;font-family:inherit;"/>
+      <div style="display:flex;gap:4px;margin-bottom:14px;">
+        ${tabBtn('cocktails', '🍹 Cocktails')}
+        ${tabBtn('event', '⚙️ Event')}
+        ${tabBtn('summary', '📊 Summary')}
+      </div>
+      ${content}
     </div>`;
 }
 
-function renderMenuSummary() {
-  const menuItems = Array.isArray(state.menu) ? state.menu : [];
-  const total = menuItems.reduce((s,m) => { const c = getMenuCocktail(m); return s + (c ? cocktailCost(c) * Number(m.servings||0) : 0); }, 0);
-  const servings = menuItems.reduce((s,m) => s+Number(m.servings||0), 0);
-  const revenue = menuItems.reduce((s,m) => s+Number(m.salePrice||0)*Number(m.servings||0), 0);
-  const avgCostPerServing = servings > 0 ? total / servings : 0;
-  const avgAbv = menuAvgAbv();
+function renderMenuDetailCocktails(m) {
+  const items = Array.isArray(m.items) ? m.items : [];
+  const setup = m.menuSetup || {};
+  const totalServings = (setup.guests || 0) * (setup.drinksPerPerson || 3);
+  const totalPct = items.reduce((s, item) => s + Number(item.pct || 0), 0);
+  const pctColor = Math.abs(totalPct - 100) < 0.01 ? 'var(--green)' : totalPct > 100 ? 'var(--red)' : 'var(--amber)';
 
-  const rows = menuItems.map(m => {
-    const c = getMenuCocktail(m); if (!c) return '';
-    const cost = cocktailCost(c) * Number(m.servings||0);
-    const rev = Number(m.salePrice||0) * Number(m.servings||0);
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+  const rows = items.length === 0
+    ? `<div class="empty" style="margin:0;padding:32px 0;"><div class="empty-icon">🍹</div><div class="empty-title">No cocktails yet</div><div class="empty-sub">Tap + Add below</div></div>`
+    : items.map((item, idx) => {
+        const c = state.cocktails.find(x => x.id === (item.cocktailId || item.id));
+        const cost = c ? cocktailCost(c) : 0;
+        const qty = totalServings > 0 ? Math.round(totalServings * Number(item.pct || 0) / 100) : Number(item.servings || 0);
+        return `<div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <div style="flex:1;font-size:15px;font-weight:600;">${esc(c ? c.name : (item.cocktailName || 'Unknown'))}</div>
+            <span style="font-size:12px;color:var(--amber);font-weight:700;">${money(cost)}/drink</span>
+            <button class="btn-icon red" onclick="removeFromMenuEdit(${idx})">✕</button>
+          </div>
+          <div class="field-row" style="margin-bottom:6px;">
+            <div class="field">
+              <label>% of Crowd</label>
+              <input type="number" min="0" max="100" step="1" value="${item.pct || 0}"
+                onchange="updateMenuEditItem(${idx},'pct',Number(this.value))"
+                style="text-align:center;font-size:18px;font-weight:700;"/>
+            </div>
+            <div class="field">
+              <label>Qty</label>
+              <div style="padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-size:18px;font-weight:800;color:var(--blue);text-align:center;">${qty}</div>
+            </div>
+            <div class="field">
+              <label>Sale $</label>
+              <input type="number" step="0.50" min="0" value="${item.salePrice || 0}"
+                onchange="updateMenuEditItem(${idx},'salePrice',Number(this.value))"
+                style="text-align:center;font-size:15px;font-weight:700;"/>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--ink3);">${money(cost * qty)} total cost</div>
+        </div>`;
+      }).join('');
+
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:13px;color:var(--ink2);">Allocation: <b style="color:${pctColor}">${totalPct.toFixed(0)}%</b>${totalServings > 0 ? ' · ' + totalServings + ' drinks' : ''}</div>
+      <button class="page-action" onclick="openMenuCocktailPickerForEdit()">+ Add</button>
+    </div>
+    ${rows}`;
+}
+
+function renderMenuDetailEvent(m) {
+  const setup = m.menuSetup || {guests: 0, drinksPerPerson: 3};
+  const totalServings = (setup.guests || 0) * (setup.drinksPerPerson || 3);
+  return `
+    <div style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:700;color:var(--ink);margin-bottom:12px;">Event Details</div>
+      <div class="field-row" style="margin-bottom:12px;">
+        <div class="field">
+          <label>Total Guests</label>
+          <input type="number" min="0" value="${setup.guests || 0}"
+            oninput="updateMenuEditSetup(${menuEditIdx},'guests',Number(this.value))"/>
+        </div>
+        <div class="field">
+          <label>Drinks / Person</label>
+          <input type="number" min="1" step="0.5" value="${setup.drinksPerPerson || 3}"
+            oninput="updateMenuEditSetup(${menuEditIdx},'drinksPerPerson',Number(this.value))"/>
+        </div>
+      </div>
+      <div style="background:var(--surface);border-radius:10px;padding:12px;text-align:center;" id="menuServingsDisplay">
+        <div style="font-size:28px;font-weight:800;color:var(--amber);" id="menuServingsNum">${totalServings}</div>
+        <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">Total Servings Needed</div>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="applyServingsToMenuEdit()">Apply to Cocktails →</button>`;
+}
+
+function renderMenuDetailSummary(m) {
+  const items = Array.isArray(m.items) ? m.items : [];
+  const setup = m.menuSetup || {};
+  const totalServings = items.reduce((s, item) => s + Number(item.servings || 0), 0);
+  const totalCost = items.reduce((s, item) => {
+    const c = state.cocktails.find(x => x.id === (item.cocktailId || item.id));
+    return s + (c ? cocktailCost(c) * Number(item.servings || 0) : 0);
+  }, 0);
+  const totalRevenue = items.reduce((s, item) => s + Number(item.salePrice || 0) * Number(item.servings || 0), 0);
+  const avgCostPerServing = totalServings > 0 ? totalCost / totalServings : 0;
+
+  const rows = items.map(item => {
+    const c = state.cocktails.find(x => x.id === (item.cocktailId || item.id));
+    if (!c) return '';
+    const cost = cocktailCost(c) * Number(item.servings || 0);
+    const rev = Number(item.salePrice || 0) * Number(item.servings || 0);
+    return `<div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
         <div style="font-size:14px;font-weight:600;">${esc(c.name)}</div>
         <div style="font-size:13px;font-weight:700;color:var(--amber);">${money(cost)}</div>
       </div>
-      <div style="font-size:12px;color:var(--ink3);">${m.pct||0}% · ${m.servings||0} servings${m.salePrice?` · Revenue: ${money(rev)}`:''}${c?` · ABV: ${(cocktailAbv(c)||0).toFixed(1)}%`:''}</div>
+      <div style="font-size:12px;color:var(--ink3);">${item.pct || 0}% · ${item.servings || 0} drinks${item.salePrice ? ' · Revenue: ' + money(rev) : ''}</div>
     </div>`;
   }).join('');
 
   return `
-    <div style="padding:0 16px 16px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow-sm);">
-          <div style="font-size:22px;font-weight:800;color:var(--ink);">${servings}</div>
-          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Event Servings</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow-sm);">
-          <div style="font-size:22px;font-weight:800;color:var(--amber);">${money(total)}</div>
-          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Est. Shopping Cost</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow-sm);">
-          <div style="font-size:22px;font-weight:800;color:var(--teal);">${money(avgCostPerServing)}</div>
-          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Avg Cost / Serving</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow-sm);">
-          <div style="font-size:22px;font-weight:800;color:var(--green);">${avgAbv !== null ? avgAbv.toFixed(1)+'%' : '—'}</div>
-          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Avg Menu ABV</div>
-        </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center;">
+        <div style="font-size:22px;font-weight:800;color:var(--ink);">${totalServings}</div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Servings</div>
       </div>
-      ${revenue > 0 ? `<div style="background:#f0fdfb;border:1px solid #b2e4df;border-radius:10px;padding:12px;text-align:center;margin-bottom:12px;">
-        <div style="font-size:11px;color:var(--teal);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Est. Revenue</div>
-        <div style="font-size:26px;font-weight:800;color:var(--teal);">${money(revenue)}</div>
-      </div>` : ''}
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px;">Cocktail Breakdown</div>
-      ${rows || `<div class="empty"><div class="empty-sub">No cocktails added yet</div></div>`}
-    </div>`;
+      <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center;">
+        <div style="font-size:22px;font-weight:800;color:var(--amber);">${money(totalCost)}</div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Est. Cost</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center;">
+        <div style="font-size:22px;font-weight:800;color:var(--teal);">${money(avgCostPerServing)}</div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Avg / Drink</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center;">
+        <div style="font-size:22px;font-weight:800;color:var(--green);">${money(totalRevenue)}</div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);margin-top:2px;">Est. Revenue</div>
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px;">Cocktail Breakdown</div>
+    ${rows || '<div class="empty"><div class="empty-sub">No cocktails added yet</div></div>'}`;
 }
 
-function loadSavedMenu(idx) {
-  const sm = state.savedMenus[idx];
-  if (!sm) return;
-  state.menu = JSON.parse(JSON.stringify(sm.items||[]));
+function updateMenuEditItem(idx, field, value) {
+  const m = state.savedMenus[menuEditIdx];
+  if (!m || !m.items[idx]) return;
+  m.items[idx][field] = value;
+  m.updatedAt = new Date().toLocaleDateString();
   saveData(); render();
-  showSnack('Loaded: ' + (sm.name||'Menu'));
-}
-function deleteSavedMenu(idx) {
-  if (!confirm('Delete this saved menu?')) return;
-  state.savedMenus.splice(idx, 1);
-  saveData(); render();
-}
-function duplicateSavedMenu(idx) {
-  const src = state.savedMenus[idx];
-  if (!src) return;
-  const name = prompt('Name for the duplicate menu:', 'Copy of ' + (src.name || 'Menu'));
-  if (!name) return;
-  const copy = JSON.parse(JSON.stringify(src));
-  copy.id = uid();
-  copy.name = name;
-  copy.createdAt = new Date().toLocaleDateString();
-  copy.updatedAt = new Date().toLocaleDateString();
-  state.savedMenus.splice(idx + 1, 0, copy); // insert right after original
-  saveData(); render();
-  showSnack('Menu duplicated ✓');
-}
-function saveCurrentMenu() {
-  const name = prompt('Name this menu:', 'Event Menu ' + new Date().toLocaleDateString());
-  if (!name) return;
-  if (!Array.isArray(state.savedMenus)) state.savedMenus = [];
-  state.savedMenus.push({id: uid(), name, items: JSON.parse(JSON.stringify(state.menu)), createdAt: new Date().toLocaleDateString(), updatedAt: new Date().toLocaleDateString()});
-  saveData(); render();
-  showSnack('Menu saved ✓');
-}
-function generateShoppingFromMenu() {
-  setTab('shopping');
-  showSnack('Shopping list updated from menu');
 }
 
-function addMenuItem() {
-  if (!Array.isArray(state.menu)) state.menu = [];
-  // Open cocktail picker sheet
-  openMenuCocktailPicker();
+function removeFromMenuEdit(idx) {
+  const m = state.savedMenus[menuEditIdx];
+  if (!m) return;
+  m.items.splice(idx, 1);
+  m.updatedAt = new Date().toLocaleDateString();
+  saveData(); render();
 }
 
-function openMenuCocktailPicker() {
-  const opts = state.cocktails.map(c => `
-    <div class="card" onclick="addCocktailToMenu('${c.id}')">
+function updateMenuEditSetup(idx, field, value) {
+  const m = state.savedMenus[idx];
+  if (!m) return;
+  if (!m.menuSetup) m.menuSetup = {guests: 0, drinksPerPerson: 3};
+  m.menuSetup[field] = value;
+  m.updatedAt = new Date().toLocaleDateString();
+  saveData();
+  // Live-update the servings display without a full re-render
+  const g = m.menuSetup.guests || 0;
+  const d = m.menuSetup.drinksPerPerson || 3;
+  const el = document.getElementById('menuServingsNum');
+  if (el) el.textContent = g * d;
+}
+
+function applyServingsToMenuEdit() {
+  const m = state.savedMenus[menuEditIdx];
+  if (!m) return;
+  const setup = m.menuSetup || {};
+  const total = (setup.guests || 0) * (setup.drinksPerPerson || 3);
+  if (total === 0) { showSnack('Enter guests and drinks/person first'); return; }
+  if (!m.items || m.items.length === 0) { showSnack('Add cocktails first'); return; }
+  m.items.forEach(item => {
+    item.servings = Math.round(total * Number(item.pct || 0) / 100);
+  });
+  m.updatedAt = new Date().toLocaleDateString();
+  menuDetailTab = 'cocktails';
+  saveData(); render();
+  showSnack('Servings applied ✓');
+}
+
+function openMenuCocktailPickerForEdit() {
+  const m = state.savedMenus[menuEditIdx];
+  const existingIds = new Set((m?.items || []).map(item => item.cocktailId || item.id));
+  const opts = state.cocktails.map(c =>
+    `<div class="card${existingIds.has(c.id) ? '' : ''}" onclick="${existingIds.has(c.id) ? '' : 'addCocktailToMenuEdit(\'' + c.id + '\')'}" style="${existingIds.has(c.id) ? 'opacity:.4;pointer-events:none;' : ''}padding:12px 16px;">
       <div class="card-body">
         <div class="card-name">${esc(c.name)}</div>
-        <div class="card-sub">${money(cocktailCost(c))}/drink · ${esc(c.category||'')}</div>
+        <div class="card-sub">${money(cocktailCost(c))}/drink · ${esc(c.category || '')}</div>
       </div>
-      <span class="chevron-right">+</span>
+      <span class="chevron-right">${existingIds.has(c.id) ? '✓' : '+'}</span>
     </div>`).join('');
   const el = document.getElementById('mainContent');
   el.innerHTML = `
     <div class="page-header">
-      <div><button class="btn btn-secondary btn-sm" onclick="menuTab='cocktails';render()">← Back</button></div>
-      <div class="page-title" style="font-size:17px;">Pick Cocktail</div>
+      <button onclick="render()" style="background:none;border:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--blue);padding:0;">← Back</button>
+      <div class="page-title" style="font-size:17px;">Add Cocktail</div>
     </div>
-    <div class="card-list">${opts || '<div class="empty"><div class="empty-sub">No cocktails found — add recipes first</div></div>'}</div>
-  `;
+    <div class="card-list" style="padding:0 16px 80px;">${opts || '<div class="empty"><div class="empty-sub">No cocktails — add recipes first</div></div>'}</div>`;
 }
 
-function addCocktailToMenu(cocktailId) {
-  if (!Array.isArray(state.menu)) state.menu = [];
-  if (state.menu.find(m => m.cocktailId === cocktailId)) { showSnack('Already in menu'); menuTab='cocktails'; render(); return; }
-  state.menu.push({cocktailId, servings:0, salePrice:0, pct:0});
-  saveData(); menuTab = 'cocktails'; render();
+function addCocktailToMenuEdit(cocktailId) {
+  const m = state.savedMenus[menuEditIdx];
+  if (!m) return;
+  if (!Array.isArray(m.items)) m.items = [];
+  if (m.items.find(item => (item.cocktailId || item.id) === cocktailId)) { showSnack('Already in menu'); render(); return; }
+  m.items.push({cocktailId, servings: 0, salePrice: 0, pct: 0});
+  m.updatedAt = new Date().toLocaleDateString();
+  saveData(); menuDetailTab = 'cocktails'; render();
 }
 
+function sendMenuToShopping() {
+  const m = state.savedMenus[menuEditIdx];
+  if (!m || !m.items || m.items.length === 0) { showSnack('No cocktails in this menu'); return; }
+  state.menu = JSON.parse(JSON.stringify(m.items));
+  state.menuSetup = JSON.parse(JSON.stringify(m.menuSetup || {guests: 0, drinksPerPerson: 3}));
+  saveData();
+  setTab('shopping');
+  showSnack('Shopping list ready from "' + (m.name || 'Menu') + '"');
+}
+
+async function shareMenuByIdx(idx) {
+  const m = state.savedMenus[idx];
+  if (!m) return;
+  await doShareMenu(m);
+}
+
+async function shareMenuDraft() {
+  const m = state.savedMenus[menuEditIdx];
+  if (!m) return;
+  await doShareMenu(m);
+}
+
+async function doShareMenu(m) {
+  const items = Array.isArray(m.items) ? m.items : [];
+  const setup = m.menuSetup || {};
+  const totalServings = (setup.guests || 0) * (setup.drinksPerPerson || 3);
+
+  const rows = items.map(item => {
+    const c = state.cocktails.find(x => x.id === (item.cocktailId || item.id));
+    const name = c ? c.name : (item.cocktailName || 'Unknown');
+    const qty = totalServings > 0 ? Math.round(totalServings * Number(item.pct || 0) / 100) : Number(item.servings || 0);
+    const cost = c ? cocktailCost(c) : 0;
+    return `<tr><td style="padding:10px 0;font-weight:600;font-size:15px;">${esc(name)}</td><td style="text-align:center;color:#d97706;font-weight:700;">${item.pct || 0}%</td><td style="text-align:center;font-weight:700;color:#0070f2;">${qty}</td><td style="text-align:right;color:#8492a6;">${money(cost * qty)}</td></tr>`;
+  }).join('');
+
+  const totalCost = items.reduce((s, item) => {
+    const c = state.cocktails.find(x => x.id === (item.cocktailId || item.id));
+    return s + (c ? cocktailCost(c) * Number(item.servings || 0) : 0);
+  }, 0);
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(m.name || 'Menu')}</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;color:#1d2b3a}
+h1{font-size:26px;font-weight:800;margin:0 0 4px}
+.meta{color:#8492a6;font-size:13px;margin-bottom:24px}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#8492a6;padding:0 0 8px;border-bottom:2px solid #e2e8f0;text-align:left}
+th:not(:first-child){text-align:center}th:last-child{text-align:right}
+tr{border-bottom:1px solid #f0f2f5}tr:last-child{border-bottom:none}
+.total{margin-top:20px;padding:14px;background:#f9fafb;border-radius:10px;display:flex;justify-content:space-between;align-items:center}
+.total-label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#8492a6}
+.total-val{font-size:20px;font-weight:800;color:#d97706}
+.footer{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#8492a6;text-align:center}
+@media print{body{padding:0}}
+</style></head><body>
+<h1>${esc(m.name || 'Menu')}</h1>
+<div class="meta">${setup.guests ? setup.guests + ' guests · ' + ((setup.guests||0) * (setup.drinksPerPerson||3)) + ' servings · ' : ''}${new Date().toLocaleDateString()}</div>
+<table><thead><tr><th>Cocktail</th><th>%</th><th>Qty</th><th>Est. Cost</th></tr></thead>
+<tbody>${rows}</tbody></table>
+${totalCost > 0 ? `<div class="total"><span class="total-label">Est. Total Cost</span><span class="total-val">${money(totalCost)}</span></div>` : ''}
+<div class="footer">Shaker &amp; Cellar</div>
+</body></html>`;
+
+  const filename = (m.name || 'menu').replace(/[^a-z0-9]/gi, '-').toLowerCase() + '.html';
+
+  if (navigator.canShare) {
+    const file = new File([html], filename, {type: 'text/html'});
+    if (navigator.canShare({files: [file]})) {
+      try { await navigator.share({files: [file], title: m.name || 'Menu'}); return; }
+      catch(e) { if (e.name === 'AbortError') return; }
+    }
+  }
+  if (navigator.share) {
+    const lines = [
+      (m.name || 'MENU').toUpperCase(),
+      setup.guests ? 'Guests: ' + setup.guests + ' · Servings: ' + ((setup.guests||0) * (setup.drinksPerPerson||3)) : '',
+      '',
+      ...items.map(item => {
+        const c = state.cocktails.find(x => x.id === (item.cocktailId || item.id));
+        const qty = totalServings > 0 ? Math.round(totalServings * Number(item.pct || 0) / 100) : Number(item.servings || 0);
+        return '• ' + (c ? c.name : 'Unknown') + ' — ' + (item.pct || 0) + '% · ' + qty + ' drinks';
+      }),
+      totalCost > 0 ? '\nEst. Cost: ' + money(totalCost) : '',
+      '\n— Shaker & Cellar'
+    ].filter(Boolean).join('\n');
+    try { await navigator.share({title: m.name || 'Menu', text: lines}); } catch(e) {}
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([html], {type: 'text/html'}));
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportMenuPDFFromEdit() {
+  const m = state.savedMenus[menuEditIdx];
+  if (!m) return;
+  // Temporarily set state.menu to this menu's items for exportMenuPDF to use
+  const prev = state.menu;
+  const prevSetup = state.menuSetup;
+  state.menu = JSON.parse(JSON.stringify(m.items || []));
+  state.menuSetup = JSON.parse(JSON.stringify(m.menuSetup || {guests:0,drinksPerPerson:3}));
+  exportMenuPDF();
+  state.menu = prev;
+  state.menuSetup = prevSetup;
+}
+
+// Legacy stubs (keep so old saved data references don't break)
+function loadSavedMenu(idx) { openMenuEdit(idx); }
+function deleteSavedMenu(idx) { deleteMenuByIdx(idx); }
+function generateShoppingFromMenu() { if (menuEditIdx !== null) sendMenuToShopping(); else setTab('shopping'); }
 let menuItemIdx = -1;
 let menuItemDraft = null;
-function openMenuItemSheet(idx) {
-  menuItemIdx = idx;
-  menuItemDraft = {...state.menu[idx]};
-  document.getElementById('menuItemSheetTitle').textContent = 'Menu Item';
-  renderMenuItemSheet();
-  document.getElementById('menuItemSheet').classList.remove('hidden');
-}
-function closeMenuItemSheet() { document.getElementById('menuItemSheet').classList.add('hidden'); menuItemDraft = null; }
-function renderMenuItemSheet() {
-  const m = menuItemDraft;
-  const cocktailOpts = state.cocktails.map(c => `<option value="${c.id}"${m.cocktailId===c.id?' selected':''}>${esc(c.name)}</option>`).join('');
-  const selectedC = state.cocktails.find(x => x.id === m.cocktailId);
-  const pourCost = selectedC ? cocktailCost(selectedC) : 0;
-  document.getElementById('menuItemSheetBody').innerHTML = `
-    <div class="field"><label>Cocktail</label><select onchange="menuItemDraft.cocktailId=this.value;renderMenuItemSheet()"><option value="">— Select —</option>${cocktailOpts}</select></div>
-    ${selectedC ? `<div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:14px;text-align:center;">
-      <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">Pour Cost per Drink</div>
-      <div style="font-size:24px;font-weight:800;color:var(--amber);">${money(pourCost)}</div>
-    </div>` : ''}
-    <div class="field-row">
-      <div class="field"><label>Servings</label><input type="number" min="0" value="${m.servings||0}" oninput="menuItemDraft.servings=Number(this.value)"/></div>
-      <div class="field"><label>Sale Price $</label><input type="number" step="0.50" min="0" value="${m.salePrice||0}" oninput="menuItemDraft.salePrice=Number(this.value)"/></div>
-    </div>
-    <div class="field"><label>Notes</label><textarea oninput="menuItemDraft.notes=this.value">${esc(m.notes||'')}</textarea></div>
-    <button class="btn btn-danger btn-full" onclick="deleteMenuItem()">Remove from Menu</button>
-  `;
-}
-function saveMenuItemSheet() { state.menu[menuItemIdx] = menuItemDraft; closeMenuItemSheet(); saveData(); render(); }
-function deleteMenuItem() { state.menu.splice(menuItemIdx, 1); closeMenuItemSheet(); saveData(); render(); }
+function openMenuItemSheet(idx) {}
+function closeMenuItemSheet() { try { document.getElementById('menuItemSheet').classList.add('hidden'); } catch(e){} menuItemDraft = null; }
+function saveMenuItemSheet() {}
+function deleteMenuItem() {}
 
 // ===== SHOPPING TAB =====
 function buildShoppingFromMenu() {
@@ -1737,6 +1875,260 @@ function downloadCSV(filename, content) {
   const a = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ===== BATCHING TAB =====
+let batchState = {
+  menuSource: 'all',
+  selected: new Set(),
+  batchMode: 'servings',   // 'container' | 'servings'
+  containerSize: 32,
+  containerUnit: 'oz',
+  servings: 20,
+  includeDilution: true,
+  dilutionPct: 20
+};
+
+function initBatchState() {
+  if (!batchState) batchState = {menuSource:'all',selected:new Set(),batchMode:'servings',containerSize:32,containerUnit:'oz',servings:20,includeDilution:true,dilutionPct:20};
+  if (!(batchState.selected instanceof Set)) batchState.selected = new Set(batchState.selected || []);
+  if (!batchState.batchMode) batchState.batchMode = 'servings';
+  if (!batchState.servings) batchState.servings = 20;
+}
+
+function cockMapMobile() { return Object.fromEntries((state.cocktails||[]).map(c => [c.id, c])); }
+
+function batchContainerOzMobile() {
+  const u = batchState.containerUnit, s = batchState.containerSize;
+  if (u === 'L') return s * 33.814;
+  if (u === 'cups') return s * 8;
+  return s;
+}
+
+function unitToOz(qty, unit) {
+  const u = (unit || 'oz').toLowerCase().trim();
+  const q = Number(qty || 0);
+  if (u === 'oz')       return q;
+  if (u === 'ml')       return q * 0.033814;
+  if (u === 'cl')       return q * 0.33814;
+  if (u === 'l')        return q * 33.814;
+  if (u === 'dash' || u === 'dashes') return q * 0.02083;
+  if (u === 'drop' || u === 'drops')  return q * 0.00169;
+  if (u === 'tsp' || u === 'teaspoon') return q * 0.16667;
+  if (u === 'tbsp' || u === 'tablespoon') return q * 0.5;
+  if (u === 'barspoon') return q * 0.125;
+  if (u === 'splash')   return q * 0.25;
+  if (u === 'rinse')    return q * 0.125;
+  return q;
+}
+
+function fmtBatchQty(qty, unit) {
+  if (unit === 'each') return Math.ceil(qty) + ' each';
+  const cups = (qty / 8).toFixed(2) + ' cups';
+  const ml   = (qty * 29.5735).toFixed(1) + ' ml';
+  if (qty >= 32) { const qts = qty / 32; return qts.toFixed(2) + ' qt (' + qty.toFixed(1) + ' oz / ' + cups + ' / ' + ml + ')'; }
+  return qty.toFixed(2) + ' oz (' + cups + ' / ' + ml + ')';
+}
+
+function calcBatchRecipeMobile(cocktail) {
+  const im = ingMap();
+  const dilFraction = batchState.includeDilution ? (batchState.dilutionPct / 100) : 0;
+  const recipeVolumeOz = (cocktail.recipe || []).reduce((sum, line) => {
+    if ((line.unit || 'oz') === 'each') return sum;
+    return sum + unitToOz(Number(line.qty || 0), line.unit || 'oz');
+  }, 0);
+  if (recipeVolumeOz <= 0) return null;
+
+  let scaleFactor, waterOz, totalOz;
+  if (batchState.batchMode === 'servings') {
+    scaleFactor = batchState.servings;
+    const scaledRecipeOz = recipeVolumeOz * scaleFactor;
+    waterOz = scaledRecipeOz * dilFraction;
+    totalOz = scaledRecipeOz + waterOz;
+  } else {
+    const containerOz = batchContainerOzMobile();
+    waterOz = containerOz * dilFraction;
+    const targetRecipeOz = containerOz * (1 - dilFraction);
+    scaleFactor = targetRecipeOz / recipeVolumeOz;
+    totalOz = containerOz;
+  }
+
+  const lines = (cocktail.recipe || []).map(line => {
+    const ing = im[line.ingredientId];
+    const name = ing ? (ing.name || ing.ingredientType || ing.brand || 'Unknown') : 'Unknown Ingredient';
+    const unit = (line.unit || 'oz').toLowerCase().trim();
+    const rawQty = Number(line.qty || 0);
+    if (unit === 'each') return {name, qty: Math.ceil(rawQty * scaleFactor), unit: 'each', displayStr: Math.ceil(rawQty * scaleFactor) + ' each'};
+    const scaledOz = unitToOz(rawQty, unit) * scaleFactor;
+    return {name, qty: scaledOz, unit: 'oz', displayStr: fmtBatchQty(scaledOz, 'oz')};
+  });
+
+  const servingsCount = batchState.batchMode === 'servings' ? batchState.servings : Math.round(scaleFactor);
+  return {lines, waterOz, totalOz, scaleFactor, recipeVolumeOz, servingsCount};
+}
+
+function batchCocktailListMobile() {
+  if (batchState.menuSource === 'all') return state.cocktails || [];
+  const menu = (state.savedMenus || []).find(m => m.id === batchState.menuSource);
+  if (!menu) return state.cocktails || [];
+  const ids = new Set((menu.items || []).map(i => i.cocktailId || i.id));
+  return (state.cocktails || []).filter(c => ids.has(c.id));
+}
+
+function batchToggleMobile(id) {
+  initBatchState();
+  if (batchState.selected.has(id)) batchState.selected.delete(id);
+  else batchState.selected.add(id);
+  render();
+}
+
+function exportBatchTxt() {
+  initBatchState();
+  const selected = [...batchState.selected];
+  if (!selected.length) { showSnack('Select at least one cocktail first'); return; }
+  const cm = cockMapMobile();
+  const isServMode = batchState.batchMode === 'servings';
+  let txt = 'BATCH RECIPE INSTRUCTIONS\n';
+  txt += 'Generated: ' + new Date().toLocaleString() + '\n';
+  txt += 'Method: ' + (isServMode ? 'Scale by Servings (' + batchState.servings + ' servings)' : 'Fill Container (' + batchState.containerSize + ' ' + batchState.containerUnit + ')') + '\n';
+  txt += 'Dilution: ' + (batchState.includeDilution ? batchState.dilutionPct + '% of recipe volume' : 'None') + '\n';
+  txt += '='.repeat(50) + '\n\n';
+  selected.forEach(id => {
+    const c = cm[id]; if (!c) return;
+    const result = calcBatchRecipeMobile(c); if (!result) return;
+    txt += c.name.toUpperCase() + '\n' + '-'.repeat(40) + '\n';
+    txt += (isServMode ? 'Servings: ' + result.servingsCount : 'Container: ' + batchState.containerSize + ' ' + batchState.containerUnit) + '\n';
+    txt += 'Total Batch: ' + fmtBatchQty(result.totalOz, 'oz') + '\n\nINGREDIENTS:\n';
+    result.lines.forEach(l => { txt += '  ' + l.name + ': ' + (l.displayStr || fmtBatchQty(l.qty, l.unit)) + '\n'; });
+    if (batchState.includeDilution && result.waterOz > 0) txt += '  Water (' + batchState.dilutionPct + '%): ' + fmtBatchQty(result.waterOz, 'oz') + '\n';
+    txt += '\n' + '='.repeat(50) + '\n\n';
+  });
+  const url = URL.createObjectURL(new Blob([txt], {type: 'text/plain'}));
+  const a = document.createElement('a'); a.href = url; a.download = 'batch-' + new Date().toISOString().slice(0, 10) + '.txt'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function renderBatching() {
+  initBatchState();
+  const menus = Array.isArray(state.savedMenus) ? state.savedMenus : [];
+  const isServMode = batchState.batchMode === 'servings';
+  const cm = cockMapMobile();
+  const cocktailList = batchCocktailListMobile();
+  const selected = [...batchState.selected];
+
+  // Source picker
+  const allOpt = batchState.menuSource === 'all';
+  const sourceOpts = [
+    `<option value="all"${allOpt ? ' selected' : ''}>All Cocktails</option>`,
+    ...menus.map(m => `<option value="${m.id}"${batchState.menuSource === m.id ? ' selected' : ''}>${esc(m.name)}</option>`)
+  ].join('');
+
+  // Cocktail selector chips
+  const chips = cocktailList.map(c => {
+    const sel = batchState.selected.has(c.id);
+    return `<div onclick="batchToggleMobile('${c.id}')" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;margin-bottom:6px;background:${sel?'var(--blue)':'var(--surface2)'};cursor:pointer;border:2px solid ${sel?'var(--blue)':'transparent'};">
+      <div style="width:18px;height:18px;border-radius:4px;background:${sel?'white':'var(--surface)'};border:2px solid ${sel?'var(--blue)':'var(--border)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;">${sel?'✓':''}</div>
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:600;color:${sel?'white':'var(--ink)'};">${esc(c.name)}</div>
+        <div style="font-size:11px;color:${sel?'rgba(255,255,255,.7)':'var(--ink3)'};">${esc(c.category || '')} · ${(c.recipe||[]).reduce((s,r)=>(r.unit||'oz')==='each'?s:s+Number(r.qty||0),0).toFixed(1)} oz/serving</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Results
+  let resultsHtml = '';
+  if (selected.length) {
+    resultsHtml = selected.map(id => {
+      const c = cm[id]; if (!c) return '';
+      const result = calcBatchRecipeMobile(c);
+      if (!result) return `<div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:10px;"><div style="font-weight:700;margin-bottom:4px;">${esc(c.name)}</div><div style="color:var(--ink3);font-size:13px;">Could not calculate — recipe may have no measurable liquid ingredients.</div></div>`;
+      const rows = result.lines.map(l =>
+        `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);">
+          <span style="font-size:13px;color:var(--ink);">${esc(l.name)}</span>
+          <span style="font-size:13px;font-weight:700;color:var(--teal);text-align:right;max-width:55%;">${l.displayStr || fmtBatchQty(l.qty, l.unit)}</span>
+        </div>`).join('');
+      const waterRow = batchState.includeDilution ?
+        `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);">
+          <span style="font-size:13px;color:var(--blue);">💧 Dilution Water (${batchState.dilutionPct}%)</span>
+          <span style="font-size:13px;font-weight:700;color:var(--blue);">${fmtBatchQty(result.waterOz, 'oz')}</span>
+        </div>` : '';
+      const modeNote = isServMode
+        ? result.servingsCount + ' servings · ' + result.recipeVolumeOz.toFixed(2) + ' oz per serving'
+        : result.servingsCount + ' servings · fills ' + batchState.containerSize + ' ' + batchState.containerUnit + ' container';
+      return `<div style="background:var(--surface2);border-radius:12px;padding:14px 16px;margin-bottom:12px;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:3px;">${esc(c.name)}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:12px;">${modeNote}</div>
+        ${rows}${waterRow}
+        <div style="display:flex;justify-content:space-between;padding:10px 0 0;margin-top:4px;">
+          <span style="font-size:13px;font-weight:700;color:var(--ink);">Total Batch</span>
+          <span style="font-size:13px;font-weight:800;color:var(--amber);">${fmtBatchQty(result.totalOz, 'oz')}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    resultsHtml = `<div class="empty" style="margin:0;padding:24px 0;"><div class="empty-sub">Select cocktails above to see batch quantities</div></div>`;
+  }
+
+  return `
+    <div class="page-header">
+      <div class="page-title">Batch Calculator</div>
+      ${selected.length ? `<button class="page-action" onclick="exportBatchTxt()">⬇ Export</button>` : ''}
+    </div>
+    <div style="padding:0 16px 80px;">
+
+      <div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px;">Source</div>
+        <select onchange="batchState.menuSource=this.value;batchState.selected=new Set();render()"
+          style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:14px;font-family:inherit;color:var(--ink);">
+          ${sourceOpts}
+        </select>
+      </div>
+
+      <div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:10px;">Batch Method</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button onclick="batchState.batchMode='servings';render()" style="flex:1;padding:9px;border-radius:8px;border:2px solid ${isServMode?'var(--blue)':'var(--border)'};background:${isServMode?'var(--blue)':'var(--surface)'};color:${isServMode?'white':'var(--ink2)'};font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">Scale by Servings</button>
+          <button onclick="batchState.batchMode='container';render()" style="flex:1;padding:9px;border-radius:8px;border:2px solid ${!isServMode?'var(--blue)':'var(--border)'};background:${!isServMode?'var(--blue)':'var(--surface)'};color:${!isServMode?'white':'var(--ink2)'};font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">Fill Container</button>
+        </div>
+        ${isServMode
+          ? `<div class="field"><label>Number of Servings</label><input type="number" min="1" step="1" value="${batchState.servings}" onchange="batchState.servings=Math.max(1,Math.round(Number(this.value)||1));render()"/></div>`
+          : `<div class="field-row">
+               <div class="field"><label>Container Size</label><input type="number" min="0.1" step="0.5" value="${batchState.containerSize}" onchange="batchState.containerSize=Number(this.value)||32;render()"/></div>
+               <div class="field"><label>Unit</label><select onchange="batchState.containerUnit=this.value;render()" style="padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:15px;width:100%;">
+                 <option value="oz"${batchState.containerUnit==='oz'?' selected':''}>oz</option>
+                 <option value="cups"${batchState.containerUnit==='cups'?' selected':''}>cups</option>
+                 <option value="L"${batchState.containerUnit==='L'?' selected':''}>L</option>
+               </select></div>
+             </div>`
+        }
+        <div style="margin-top:12px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer;margin-bottom:8px;">
+            <input type="checkbox" ${batchState.includeDilution?'checked':''} onchange="batchState.includeDilution=this.checked;render()" style="width:16px;height:16px;accent-color:var(--amber);cursor:pointer;">
+            Include dilution water
+          </label>
+          ${batchState.includeDilution
+            ? `<div class="field-row"><div class="field"><label>Dilution %</label><input type="number" min="1" max="50" step="1" value="${batchState.dilutionPct}" onchange="batchState.dilutionPct=Number(this.value)||20;render()"/></div><div class="field" style="justify-content:flex-end;padding-top:20px;font-size:12px;color:var(--ink3);">${isServMode?'of recipe vol.':'of total batch'}</div></div>`
+            : ''
+          }
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px;">
+        Select Cocktails
+        <span style="font-size:11px;font-weight:400;color:var(--ink3);margin-left:8px;">${selected.length} selected</span>
+      </div>
+      ${cocktailList.length === 0
+        ? `<div class="empty" style="padding:20px 0;"><div class="empty-sub">No cocktails in selected source</div></div>`
+        : chips
+      }
+
+      ${selected.length > 0 ? `
+      <div style="margin-top:20px;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:10px;">Batch Results</div>
+        ${resultsHtml}
+      </div>` : ''}
+
+    </div>`;
 }
 
 // ===== SETTINGS TAB =====
