@@ -403,6 +403,7 @@
 <script>
 // ===== CONFIG =====
 const STORAGE_KEY = 'legend_cocktail_cost_menu_builder_v25_ppt_import';
+const BARCODE_LOOKUP_KEY = 'kpfn4azvfrp8icevhl913vcx71ll26';
 const SUPABASE_URL = 'https://dcydmngafvdhxxjptexh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjeWRtbmdhZnZkaHh4anB0ZXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0OTIxNzcsImV4cCI6MjA5NjA2ODE3N30.bqSr83R3PGNNJN0FlFTjwGJyXOFz6RMlge95HquCw3E';
 const ADMIN_EMAIL = 'aerubio1@yahoo.com';
@@ -2180,8 +2181,38 @@ function bsVintageSkip() {
   document.getElementById('bsVintageSheet').style.display = 'none';
 }
 
+async function bsLookupBarcodeLookupAPI(barcode) {
+  const url = 'https://api.barcodelookup.com/v3/products?barcode=' + encodeURIComponent(barcode) + '&formatted=y&key=' + BARCODE_LOOKUP_KEY;
+  const res = await bsFetch(url, 8000);
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.products || !data.products.length) return null;
+  return data.products[0];
+}
+
 async function bsLookup(barcode) {
   const st = document.getElementById('bsSheetStatus');
+
+  // 0. Barcode Lookup API — primary wine database
+  const tryBarcodeLookup = async (bc) => {
+    try {
+      st.textContent = 'Searching wine database…';
+      const product = await bsLookupBarcodeLookupAPI(bc);
+      if (product && product.title) {
+        const parsed = bsParseProductName(product.title, null);
+        if (!parsed.producer && product.brand) parsed.producer = product.brand;
+        if (product.description) parsed.desc = product.description;
+        bsApplyBL(bc, parsed);
+        st.textContent = '✓ Found: ' + product.title;
+        bsFinishLookup(); return true;
+      }
+    } catch(e) {}
+    return false;
+  };
+  if (await tryBarcodeLookup(barcode)) return;
+  // Also try EAN-13 (prepend 0) if 12-digit UPC-A
+  if (barcode.length === 12 && await tryBarcodeLookup('0' + barcode)) return;
+
   // 1. Open Food Facts
   try {
     st.textContent = 'Searching database 1/4…';
