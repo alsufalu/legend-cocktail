@@ -1828,27 +1828,66 @@ function saveShoppingList() {
 function openSavedShoppingList(idx) {
   const sl = state.savedShoppingLists[idx];
   if (!sl) return;
-  const rows = (sl.items||[]).map(item => `
-    <div class="shop-row">
+
+  const im = ingMap();
+
+  // Normalise items — handle object (old format), array, or missing
+  let rawItems = sl.items;
+  if (!rawItems) rawItems = [];
+  // If stored as a plain object (keyed by ingredientId), convert to array
+  if (!Array.isArray(rawItems) && typeof rawItems === 'object') {
+    rawItems = Object.entries(rawItems).map(([id, usage]) => {
+      const i = im[id] || {};
+      return {
+        ingredientId: id,
+        name: i.name || usage.name || id,
+        qty: usage.qty || 0,
+        unit: usage.unit || i.unit || 'oz',
+        cost: (usage.qty || 0) * costPerUnit(i)
+      };
+    });
+  }
+
+  const rows = rawItems.map(item => {
+    // Look up ingredient for any missing data
+    const ing = im[item.ingredientId] || {};
+    const name = item.name || ing.name || '—';
+    const qty  = Number(item.qty || 0);
+    const cost = Number(item.cost ?? qty * costPerUnit(ing));
+    // Resolve unit abbreviation — item.unit could be an ID or already a label
+    const unitAbbr = state.units.find(u => u.id === item.unit)?.abbr || item.unit || 'oz';
+    return `<div class="shop-row">
       <div class="shop-info">
-        <div class="shop-name">${esc(item.name)}</div>
-        <div class="shop-sub">${Number(item.qty).toFixed(2)} ${item.unit||'oz'}</div>
+        <div class="shop-name">${esc(name)}</div>
+        <div class="shop-sub">${qty.toFixed(2)} ${unitAbbr}${ing.brand ? ' · ' + esc(ing.brand) : ''}</div>
       </div>
-      <div class="shop-cost">${money(item.cost)}</div>
-    </div>`).join('');
-  const total = (sl.items||[]).reduce((s,i) => s+Number(i.cost||0), 0);
+      <div class="shop-cost">${money(cost)}</div>
+    </div>`;
+  }).join('');
+
+  const total = rawItems.reduce((s, i) => {
+    const ing = im[i.ingredientId] || {};
+    return s + Number(i.cost ?? Number(i.qty || 0) * costPerUnit(ing));
+  }, 0);
+
   const el = document.getElementById('mainContent');
   el.innerHTML = `
     <div class="page-header">
-      <div><button class="btn btn-secondary btn-sm" onclick="render()">← Back</button></div>
+      <button class="btn btn-secondary btn-sm" onclick="render()">← Back</button>
       <div class="page-title" style="font-size:17px;">${esc(sl.name)}</div>
     </div>
     <div style="margin:0 16px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">
       <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;">Total Cost</div>
       <div style="font-size:28px;font-weight:800;color:var(--amber);">${money(total)}</div>
     </div>
-    <div style="padding:0 16px 12px;"><button class="btn btn-secondary btn-sm" onclick="shareSavedList(${idx})" style="font-size:16px;padding:8px 12px;" title="Share">⬆️</button></div>
-    <div class="card-list">${rows}</div>
+    <div style="padding:0 16px 12px;display:flex;gap:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="shareSavedList(${idx})" style="font-size:16px;padding:8px 12px;" title="Share">⬆️</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportSavedListCSV(${idx})">⬇ CSV</button>
+    </div>
+    ${rawItems.length > 0
+      ? `<div class="card-list" style="padding:0 16px 80px;">${rows}</div>`
+      : `<div class="empty"><div class="empty-icon">🛒</div><div class="empty-title">This list is empty</div><div class="empty-sub">Items may not have had servings set when it was saved</div></div>`
+    }
   `;
 }
 
