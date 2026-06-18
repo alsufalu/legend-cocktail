@@ -19,6 +19,7 @@
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
   <style>
     :root {
       --bg: #f0f2f5;
@@ -2014,64 +2015,58 @@ function closeBarcodeScanner() {
   document.getElementById('bsVintageSheet').style.display = 'none';
 }
 
-// ---- Live camera — native getUserMedia + BarcodeDetector (no external library) ----
+// ---- Live camera — ZXing cross-platform barcode scanner ----
 let _bsStream = null;
 let _bsScanning = false;
 let _bsTorchOn = false;
+let _zxingReader = null;
+let _zxingControls = null;
 
 async function bsStartLive() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     document.getElementById('bsSheetStatus').textContent = '⚠ Camera not available. Use "Take Photo" or enter the number below.';
     return;
   }
-  if (typeof BarcodeDetector === 'undefined') {
-    document.getElementById('bsSheetStatus').textContent = '⚠ Live scan requires iOS 16+ Safari. Use "Take Photo" or enter the number below.';
-    return;
-  }
+  document.getElementById('bsScanOverlay').style.display = 'flex';
+  document.getElementById('bsScannerSheet').style.display = 'none';
+  document.getElementById('bsScanMsg').textContent = 'Starting camera…';
+  _bsScanning = true;
+  _bsTorchOn = false;
+
   try {
-    _bsStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-    });
-    const video = document.getElementById('bsVideoEl');
-    video.srcObject = _bsStream;
-    await video.play();
+    if (_zxingReader) { try { _zxingReader.reset(); } catch(e) {} }
+    _zxingReader = new ZXing.BrowserMultiFormatReader();
+    const videoEl = document.getElementById('bsVideoEl');
 
-    // Show full-screen overlay, hide bottom sheet
-    document.getElementById('bsScanOverlay').style.display = 'flex';
-    document.getElementById('bsScannerSheet').style.display = 'none';
-    document.getElementById('bsScanMsg').textContent = '';
-    _bsTorchOn = false;
-
-    // BarcodeDetector scan loop
-    let fmts;
-    try { fmts = await BarcodeDetector.getSupportedFormats(); } catch(e) { fmts = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']; }
-    const bd = new BarcodeDetector({ formats: fmts });
-    _bsScanning = true;
-
-    const scan = async () => {
-      if (!_bsScanning) return;
-      try {
-        const results = await bd.detect(video);
-        if (results && results.length) {
-          const raw = results[0].rawValue;
-          const clean = raw.replace(/[^0-9]/g, '') || raw;
-          bsStopLive(false);
-          document.getElementById('bsSheetStatus').textContent = '✓ Scanned: ' + clean + ' — looking up…';
-          document.getElementById('bsScannerSheet').style.display = 'block';
-          bsLookup(clean);
-          return;
+    _zxingControls = await _zxingReader.decodeFromConstraints(
+      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      videoEl,
+      (result, err) => {
+        if (!_bsScanning) return;
+        if (result) {
+          _bsScanning = false;
+          const text = result.getText();
+          const clean = text.replace(/[^0-9]/g, '') || text;
+          if (clean.length >= 6) {
+            bsStopLive(false);
+            document.getElementById('bsSheetStatus').textContent = '✓ Scanned: ' + clean + ' — looking up…';
+            document.getElementById('bsScannerSheet').style.display = 'block';
+            bsLookup(clean);
+          }
         }
-      } catch(e) {}
-      if (_bsScanning) requestAnimationFrame(scan);
-    };
-    requestAnimationFrame(scan);
+      }
+    );
+    _bsStream = videoEl.srcObject;
+    document.getElementById('bsScanMsg').textContent = '';
 
   } catch(e) {
-    bsStopLive(false);
+    _bsScanning = false;
+    if (_zxingControls) { try { _zxingControls.stop(); } catch(e2) {} _zxingControls = null; }
     const msg = (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')
       ? '⚠ Camera permission denied. Go to Settings → Safari → Camera and allow access.'
-      : '⚠ Camera unavailable on this device. Use "Take Photo" or enter the number below.';
+      : '⚠ Camera unavailable. Use "Take Photo" or enter the number below.';
     document.getElementById('bsSheetStatus').textContent = msg;
+    document.getElementById('bsScanOverlay').style.display = 'none';
     document.getElementById('bsScannerSheet').style.display = 'block';
   }
 }
@@ -2079,6 +2074,8 @@ async function bsStartLive() {
 function bsStopLive(showSheet = true) {
   _bsScanning = false;
   _bsTorchOn = false;
+  if (_zxingControls) { try { _zxingControls.stop(); } catch(e) {} _zxingControls = null; }
+  if (_zxingReader) { try { _zxingReader.reset(); } catch(e) {} _zxingReader = null; }
   if (_bsStream) { _bsStream.getTracks().forEach(t => t.stop()); _bsStream = null; }
   const video = document.getElementById('bsVideoEl');
   if (video) video.srcObject = null;
@@ -2098,7 +2095,7 @@ async function bsToggleTorch() {
   } catch(e) {}
 }
 
-// ---- Photo scan — native BarcodeDetector only ----
+// ---- Photo scan — ZXing ----
 async function bsHandlePhoto(input) {
   const file = input.files[0];
   if (!file) return;
@@ -2106,46 +2103,24 @@ async function bsHandlePhoto(input) {
   const st = document.getElementById('bsSheetStatus');
   st.textContent = '⏳ Reading barcode…';
 
-  if (typeof BarcodeDetector === 'undefined') {
-    st.textContent = '⚠ Barcode detection requires iOS 16+ Safari. Enter the number below.';
-    return;
-  }
-
+  const objectUrl = URL.createObjectURL(file);
   try {
-    let fmts;
-    try { fmts = await BarcodeDetector.getSupportedFormats(); } catch(e) { fmts = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']; }
-    const bd = new BarcodeDetector({ formats: fmts });
-
-    // createImageBitmap applies EXIF rotation on iOS 15+
-    const bitmap = await createImageBitmap(file);
-    let results = await bd.detect(bitmap);
-
-    // Try rotations if not found
-    if (!results.length) {
-      for (const deg of [90, 270, 180]) {
-        const rotated = (deg === 90 || deg === 270);
-        const c = document.createElement('canvas');
-        c.width = rotated ? bitmap.height : bitmap.width;
-        c.height = rotated ? bitmap.width : bitmap.height;
-        const ctx = c.getContext('2d');
-        ctx.translate(c.width / 2, c.height / 2);
-        ctx.rotate(deg * Math.PI / 180);
-        ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
-        results = await bd.detect(c);
-        if (results.length) break;
-      }
-    }
-    try { bitmap.close(); } catch(e) {}
-
-    if (results.length) {
-      const clean = results[0].rawValue.replace(/[^0-9]/g, '') || results[0].rawValue;
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = objectUrl; });
+    const reader = new ZXing.BrowserMultiFormatReader();
+    const result = await reader.decodeFromImageElement(img);
+    URL.revokeObjectURL(objectUrl);
+    const text = result.getText();
+    const clean = text.replace(/[^0-9]/g, '') || text;
+    if (clean.length >= 6) {
       st.textContent = '✓ Scanned: ' + clean + ' — looking up…';
       await bsLookup(clean);
     } else {
-      st.textContent = '⚠ No barcode found in photo. Try the live camera or enter the number below.';
+      st.textContent = '⚠ No barcode found. Enter the number below.';
     }
   } catch(e) {
-    st.textContent = '⚠ Could not read photo. Try the live camera or enter the number below.';
+    URL.revokeObjectURL(objectUrl);
+    st.textContent = '⚠ No barcode found in photo. Make sure the barcode is clear and well-lit, or enter the number below.';
   }
 }
 
