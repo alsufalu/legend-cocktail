@@ -319,7 +319,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">L</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.2</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.3</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -851,6 +851,136 @@ function saveWineSheet(){
 }
 function deleteWine(id){if(!confirm('Delete this wine?'))return;state.wines=(state.wines||[]).filter(w=>w.id!==id);closeWineSheet();saveData();render();}
 
+function estimatePeakDrinking(wine){
+  const currentYear=new Date().getFullYear();
+  const v=parseInt(wine.vintage);
+  const hasV=!isNaN(v)&&v>1900&&v<=currentYear+2;
+  const base=hasV?v:currentYear;
+  const type=(wine.wineType||'').toLowerCase();
+  const vari=(wine.varietal||'').toLowerCase();
+  const country=(wine.country||'').toLowerCase();
+  const region=(wine.region||'').toLowerCase();
+  const app=(wine.appellation||'').toLowerCase();
+  function peak(mn,mx){
+    const s=base+mn, e=base+mx;
+    if(e<currentYear)return 'Past peak — drink soon';
+    if(s<=currentYear)return 'Drink now – '+e;
+    return s+' – '+e;
+  }
+  if(type==='sparkling'){
+    if(!hasV)return 'Drink now – '+(currentYear+4);
+    if(country.includes('france')&&region.includes('champagne'))return peak(8,20);
+    if(country.includes('spain'))return peak(3,10);
+    return peak(3,8);
+  }
+  if(type==='dessert'){
+    if(vari.includes('sautern')||region.includes('sautern'))return peak(10,40);
+    if(vari.includes('tokaj')||region.includes('tokaj'))return peak(10,30);
+    if(vari.includes('trockenbeerenauslese'))return peak(15,50);
+    if(vari.includes('beerenauslese'))return peak(10,30);
+    if(vari.includes('eiswein')||vari.includes('ice wine'))return peak(5,20);
+    if(vari.includes('auslese'))return peak(8,25);
+    if(vari.includes('spatlese')||vari.includes('spätlese'))return peak(5,15);
+    return peak(5,15);
+  }
+  if(type==='fortified'){
+    if(vari.includes('vintage port')||(vari.includes('port')&&hasV))return peak(15,40);
+    if(vari.includes('lbv')||vari.includes('late bottled'))return peak(5,15);
+    if(vari.includes('tawny'))return 'Drink now – '+(currentYear+5);
+    if(vari.includes('port'))return peak(5,20);
+    if(vari.includes('madeira'))return peak(10,50);
+    if(vari.includes('fino')||vari.includes('manzanilla'))return 'Drink now – '+(currentYear+2);
+    if(vari.includes('sherry')||vari.includes('oloroso')||vari.includes('amontillado'))return 'Drink now – '+(currentYear+8);
+    return peak(5,20);
+  }
+  if(type==='rosé'||type==='rose'){
+    if(region.includes('tavel')||region.includes('bandol'))return peak(2,8);
+    return peak(0,3);
+  }
+  if(type==='white'){
+    if(vari.includes('riesling')){
+      if(country.includes('germany')||(country.includes('france')&&region.includes('alsace'))||country.includes('austria'))return peak(5,25);
+      return peak(3,12);
+    }
+    if(vari.includes('chardonnay')){
+      if(country.includes('france')&&(region.includes('burgundy')||region.includes('bourgogne')||region.includes('chablis')||region.includes('puligny')||region.includes('meursault')||region.includes('chassagne')||region.includes('montrachet')))return peak(4,15);
+      if(country.includes('usa')&&(region.includes('napa')||region.includes('sonoma')))return peak(2,8);
+      return peak(1,6);
+    }
+    if((vari.includes('semillon')||vari.includes('sémillon'))&&country.includes('france'))return peak(5,20);
+    if(vari.includes('sauvignon blanc')||vari.includes('sauvignon')){
+      if(country.includes('france')&&(region.includes('loire')||region.includes('sancerre')||region.includes('pouilly')))return peak(2,8);
+      return peak(0,3);
+    }
+    if(vari.includes('pinot gris')||vari.includes('pinot grigio')){
+      if(country.includes('france')&&region.includes('alsace'))return peak(3,12);
+      return peak(0,4);
+    }
+    if(vari.includes('viognier'))return peak(1,4);
+    if(vari.includes('grüner')||vari.includes('gruner'))return peak(3,12);
+    if(vari.includes('chenin blanc')){
+      if(country.includes('france')&&region.includes('loire'))return peak(5,20);
+      return peak(2,8);
+    }
+    if(vari.includes('gewurz')||vari.includes('gewürz'))return peak(2,8);
+    return peak(0,4);
+  }
+  // RED
+  if(country.includes('france')&&(region.includes('bordeaux')||region.includes('médoc')||region.includes('medoc')||region.includes('pauillac')||region.includes('margaux')||region.includes('saint-julien')||region.includes('saint-estèphe')||region.includes('saint-emilion')||region.includes('pomerol')||region.includes('graves'))){
+    if(app.includes('grand cru')||app.includes('premier')||app.includes('classé')||app.includes('classe'))return peak(10,30);
+    return peak(5,18);
+  }
+  if(country.includes('france')&&(region.includes('burgundy')||region.includes('bourgogne')||region.includes('côte')||region.includes('cote')||region.includes('chambolle')||region.includes('gevrey')||region.includes('vosne')||region.includes('nuits')||region.includes('pommard')||region.includes('volnay'))){
+    if(app.includes('grand cru'))return peak(8,25);
+    if(app.includes('premier cru')||app.includes('1er cru'))return peak(5,15);
+    return peak(3,10);
+  }
+  if(country.includes('france')&&(region.includes('hermitage')||region.includes('côte-rôtie')||region.includes('cote-rotie')||region.includes('cornas')))return peak(8,25);
+  if(country.includes('france')&&(region.includes('châteauneuf')||region.includes('chateauneuf')||region.includes('rhône')||region.includes('rhone')||region.includes('gigondas')))return peak(5,18);
+  if(vari.includes('nebbiolo')||region.includes('barolo')||region.includes('barbaresco'))return peak(8,25);
+  if(vari.includes('brunello')||region.includes('montalcino'))return peak(10,30);
+  if(vari.includes('amarone'))return peak(8,25);
+  if(vari.includes('sangiovese')||region.includes('chianti')){
+    if(app.includes('riserva')||app.includes('gran selezione'))return peak(5,20);
+    return peak(3,12);
+  }
+  if(country.includes('italy')&&region.includes('bolgheri'))return peak(8,20);
+  if(country.includes('spain')&&(region.includes('rioja')||vari.includes('rioja'))){
+    if(app.includes('gran reserva'))return peak(8,25);
+    if(app.includes('reserva'))return peak(5,15);
+    if(app.includes('crianza'))return peak(2,8);
+    return peak(3,10);
+  }
+  if(country.includes('spain')&&(region.includes('ribera')||region.includes('priorat')))return peak(5,20);
+  if(vari.includes('cabernet')&&country.includes('usa')&&(region.includes('napa')||region.includes('sonoma')))return peak(5,20);
+  if(vari.includes('cabernet sauvignon')||vari.includes('cab sauv'))return peak(3,12);
+  if(vari.includes('malbec')&&country.includes('argentina')){
+    if(app.includes('reserva')||app.includes('gran'))return peak(5,15);
+    return peak(2,8);
+  }
+  if(vari.includes('syrah')||vari.includes('shiraz')){
+    if(country.includes('france'))return peak(8,22);
+    if(country.includes('australia')&&(region.includes('barossa')||region.includes('eden')||region.includes('mclaren')))return peak(5,20);
+    return peak(3,12);
+  }
+  if(vari.includes('pinot noir')){
+    if(country.includes('usa')&&region.includes('oregon'))return peak(3,12);
+    if(country.includes('new zealand'))return peak(3,10);
+    return peak(2,8);
+  }
+  if(vari.includes('zinfandel'))return peak(2,8);
+  if(vari.includes('grenache')||vari.includes('garnacha'))return peak(2,8);
+  if(vari.includes('tempranillo'))return peak(3,12);
+  return peak(2,7);
+}
+
+function applyPeakEstimateMobile(){
+  if(!wineDraft)return;
+  wineDraft.peakDrinking=estimatePeakDrinking(wineDraft);
+  renderWineSheetBody();
+  showSnack('Peak window estimated: '+wineDraft.peakDrinking);
+}
+
 function parseCSVRow(row){
   const result=[]; let cur=''; let inQ=false;
   for(let i=0;i<row.length;i++){
@@ -958,7 +1088,7 @@ function renderWineSheetBody(){
     +'<div class="field"><label>Bin / Space</label><select '+(locId?'':'disabled')+' onchange="mobileWineBinChange(this.value)"><option value="">— None —</option>'+binOpts+'<option value="__new__">➕ Add new bin...</option></select></div>'
     +'<div class="field-row">'
       +'<div class="field"><label>Pre-drink Rating (0–100)</label><input type="number" min="0" max="100" value="'+esc(w.personalRating||'')+'" oninput="wineDraft.personalRating=this.value" placeholder="92"/></div>'
-      +'<div class="field"><label>Peak Drinking</label><input type="text" value="'+esc(w.peakDrinking||'')+'" oninput="wineDraft.peakDrinking=this.value" placeholder="2025–2035"/></div>'
+      +'<div class="field"><label>Peak Drinking</label><div style="display:flex;gap:6px;align-items:center"><input type="text" style="flex:1" value="'+esc(w.peakDrinking||'')+'" oninput="wineDraft.peakDrinking=this.value" placeholder="2025–2035"/><button type="button" onclick="applyPeakEstimateMobile()" style="white-space:nowrap;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:13px;cursor:pointer" title="Auto-estimate">✨</button></div></div>'
     +'</div>'
     +'<div class="field"><label>Tasting Notes</label><textarea oninput="wineDraft.tastingNotes=this.value">'+esc(w.tastingNotes||'')+'</textarea></div>'
     +'<div class="field"><label>Food Pairing Notes</label><textarea oninput="wineDraft.pairingNotes=this.value">'+esc(w.pairingNotes||'')+'</textarea></div>'

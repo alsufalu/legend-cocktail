@@ -867,7 +867,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">L</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.2</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.3</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -2501,6 +2501,162 @@ function parseCSVRow(row){
   return result;
 }
 
+function estimatePeakDrinking(wine){
+  const currentYear=new Date().getFullYear();
+  const v=parseInt(wine.vintage);
+  const hasV=!isNaN(v)&&v>1900&&v<=currentYear+2;
+  const base=hasV?v:currentYear;
+  const type=(wine.wineType||'').toLowerCase();
+  const vari=(wine.varietal||'').toLowerCase();
+  const country=(wine.country||'').toLowerCase();
+  const region=(wine.region||'').toLowerCase();
+  const app=(wine.appellation||'').toLowerCase();
+  function peak(mn,mx){
+    const s=base+mn, e=base+mx;
+    if(e<currentYear)return 'Past peak — drink soon';
+    if(s<=currentYear)return 'Drink now – '+e;
+    return s+' – '+e;
+  }
+  // SPARKLING
+  if(type==='sparkling'){
+    if(!hasV)return 'Drink now – '+(currentYear+4);
+    if(country.includes('france')&&region.includes('champagne'))return peak(8,20);
+    if(country.includes('spain'))return peak(3,10);
+    return peak(3,8);
+  }
+  // DESSERT
+  if(type==='dessert'){
+    if(vari.includes('sautern')||region.includes('sautern')||app.includes('sautern'))return peak(10,40);
+    if(vari.includes('tokaj')||region.includes('tokaj'))return peak(10,30);
+    if(vari.includes('trockenbeerenauslese')||vari.includes('tba'))return peak(15,50);
+    if(vari.includes('beerenauslese'))return peak(10,30);
+    if(vari.includes('eiswein')||vari.includes('ice wine'))return peak(5,20);
+    if(vari.includes('auslese'))return peak(8,25);
+    if(vari.includes('spatlese')||vari.includes('spätlese'))return peak(5,15);
+    return peak(5,15);
+  }
+  // FORTIFIED
+  if(type==='fortified'){
+    if(vari.includes('vintage port')||(vari.includes('port')&&hasV))return peak(15,40);
+    if(vari.includes('lbv')||vari.includes('late bottled'))return peak(5,15);
+    if(vari.includes('tawny'))return 'Drink now – '+(currentYear+5);
+    if(vari.includes('port'))return peak(5,20);
+    if(vari.includes('madeira'))return peak(10,50);
+    if(vari.includes('fino')||vari.includes('manzanilla'))return 'Drink now – '+(currentYear+2);
+    if(vari.includes('sherry')||vari.includes('oloroso')||vari.includes('amontillado'))return 'Drink now – '+(currentYear+8);
+    return peak(5,20);
+  }
+  // ROSÉ
+  if(type==='rosé'||type==='rose'){
+    if(region.includes('tavel')||region.includes('bandol'))return peak(2,8);
+    return peak(0,3);
+  }
+  // WHITE
+  if(type==='white'){
+    if(vari.includes('riesling')){
+      if(country.includes('germany')||(country.includes('france')&&region.includes('alsace'))||country.includes('austria'))return peak(5,25);
+      return peak(3,12);
+    }
+    if(vari.includes('chardonnay')){
+      if(country.includes('france')&&(region.includes('burgundy')||region.includes('bourgogne')||region.includes('chablis')||region.includes('puligny')||region.includes('meursault')||region.includes('chassagne')||region.includes('montrachet')))return peak(4,15);
+      if(country.includes('usa')&&(region.includes('napa')||region.includes('sonoma')))return peak(2,8);
+      return peak(1,6);
+    }
+    if((vari.includes('semillon')||vari.includes('sémillon'))&&country.includes('france'))return peak(5,20);
+    if(vari.includes('sauvignon blanc')||vari.includes('sauvignon')){
+      if(country.includes('france')&&(region.includes('loire')||region.includes('sancerre')||region.includes('pouilly')))return peak(2,8);
+      return peak(0,3);
+    }
+    if(vari.includes('pinot gris')||vari.includes('pinot grigio')){
+      if(country.includes('france')&&region.includes('alsace'))return peak(3,12);
+      return peak(0,4);
+    }
+    if(vari.includes('viognier'))return peak(1,4);
+    if(vari.includes('grüner')||vari.includes('gruner'))return peak(3,12);
+    if(vari.includes('chenin blanc')){
+      if(country.includes('france')&&region.includes('loire'))return peak(5,20);
+      return peak(2,8);
+    }
+    if(vari.includes('gewurz')||vari.includes('gewürz'))return peak(2,8);
+    return peak(0,4);
+  }
+  // RED
+  // Bordeaux / Left Bank blends
+  if(country.includes('france')&&(region.includes('bordeaux')||region.includes('médoc')||region.includes('medoc')||region.includes('pauillac')||region.includes('margaux')||region.includes('saint-julien')||region.includes('saint-estèphe')||region.includes('saint-emilion')||region.includes('pomerol')||region.includes('graves'))){
+    if(app.includes('grand cru')||app.includes('premier')||app.includes('classé')||app.includes('classe'))return peak(10,30);
+    return peak(5,18);
+  }
+  // Burgundy
+  if(country.includes('france')&&(region.includes('burgundy')||region.includes('bourgogne')||region.includes('côte')||region.includes('cote')||region.includes('chambolle')||region.includes('gevrey')||region.includes('vosne')||region.includes('nuits')||region.includes('pommard')||region.includes('volnay'))){
+    if(app.includes('grand cru'))return peak(8,25);
+    if(app.includes('premier cru')||app.includes('1er cru'))return peak(5,15);
+    return peak(3,10);
+  }
+  // Northern Rhône
+  if(country.includes('france')&&(region.includes('hermitage')||region.includes('côte-rôtie')||region.includes('cote-rotie')||region.includes('cornas')||region.includes('crozes')))return peak(8,25);
+  // Southern Rhône / CdP
+  if(country.includes('france')&&(region.includes('châteauneuf')||region.includes('chateauneuf')||region.includes('rhône')||region.includes('rhone')||region.includes('gigondas')||region.includes('vacqueyras')))return peak(5,18);
+  // Barolo / Barbaresco
+  if(vari.includes('nebbiolo')||region.includes('barolo')||region.includes('barbaresco'))return peak(8,25);
+  // Brunello
+  if(vari.includes('brunello')||region.includes('montalcino'))return peak(10,30);
+  // Amarone
+  if(vari.includes('amarone'))return peak(8,25);
+  // Sangiovese / Chianti
+  if(vari.includes('sangiovese')||region.includes('chianti')||region.includes('bolgheri')){
+    if(app.includes('riserva')||app.includes('gran selezione'))return peak(5,20);
+    return peak(3,12);
+  }
+  // Super Tuscans / Bolgheri
+  if(country.includes('italy')&&region.includes('bolgheri'))return peak(8,20);
+  // Rioja
+  if(country.includes('spain')&&(region.includes('rioja')||vari.includes('rioja'))){
+    if(app.includes('gran reserva'))return peak(8,25);
+    if(app.includes('reserva'))return peak(5,15);
+    if(app.includes('crianza'))return peak(2,8);
+    return peak(3,10);
+  }
+  // Ribera del Duero / Priorat
+  if(country.includes('spain')&&(region.includes('ribera')||region.includes('priorat')))return peak(5,20);
+  // Napa Cabernet
+  if(vari.includes('cabernet')&&country.includes('usa')&&(region.includes('napa')||region.includes('sonoma')))return peak(5,20);
+  // Cabernet Sauvignon (other)
+  if(vari.includes('cabernet sauvignon')||vari.includes('cab sauv'))return peak(3,12);
+  // Malbec
+  if(vari.includes('malbec')&&country.includes('argentina')){
+    if(app.includes('reserva')||app.includes('gran')||region.includes('luján')||region.includes('lujan'))return peak(5,15);
+    return peak(2,8);
+  }
+  // Syrah / Shiraz
+  if(vari.includes('syrah')||vari.includes('shiraz')){
+    if(country.includes('france'))return peak(8,22);
+    if(country.includes('australia')&&(region.includes('barossa')||region.includes('eden')||region.includes('mclaren')))return peak(5,20);
+    return peak(3,12);
+  }
+  // Pinot Noir (non-France)
+  if(vari.includes('pinot noir')){
+    if(country.includes('usa')&&region.includes('oregon'))return peak(3,12);
+    if(country.includes('new zealand'))return peak(3,10);
+    if(country.includes('germany'))return peak(3,12);
+    return peak(2,8);
+  }
+  // Zinfandel
+  if(vari.includes('zinfandel'))return peak(2,8);
+  // Grenache / Garnacha
+  if(vari.includes('grenache')||vari.includes('garnacha'))return peak(2,8);
+  // Tempranillo
+  if(vari.includes('tempranillo'))return peak(3,12);
+  // Default red
+  return peak(2,7);
+}
+
+function applyPeakEstimate(wineId){
+  const w=wineById(wineId); if(!w)return;
+  const est=estimatePeakDrinking(w);
+  updateWine(wineId,'peakDrinking',est);
+  render();
+}
+
 function renderCellar(){
   if(!Array.isArray(state.wines))state.wines=[];
   if(!Array.isArray(state.storageLocations))state.storageLocations=[];
@@ -2609,7 +2765,7 @@ function renderCellar(){
       +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">Notes & Ratings</div>'
       +'<div class="formgrid">'
         +'<div><label>Pre-drink Rating (0–100)</label><input class="input" type="number" min="0" max="100" value="'+esc(sel.personalRating||'')+'" placeholder="92" onchange="updateWine(\''+sid+'\',\'personalRating\',this.value)"></div>'
-        +'<div><label>Peak Drinking Window</label><input class="input" value="'+esc(sel.peakDrinking||'')+'" placeholder="2025 – 2035" onchange="updateWine(\''+sid+'\',\'peakDrinking\',this.value)"></div>'
+        +'<div><label>Peak Drinking Window</label><div style="display:flex;gap:6px;align-items:center"><input class="input" style="flex:1" value="'+esc(sel.peakDrinking||'')+'" placeholder="2025 – 2035" onchange="updateWine(\''+sid+'\',\'peakDrinking\',this.value)"><button class="secondary" style="white-space:nowrap;font-size:11px;padding:4px 8px" title="Auto-estimate from varietal, region & vintage" onclick="applyPeakEstimate(\''+sid+'\')">✨ Estimate</button></div></div>'
         +'<div class="span2"><label>Tasting Notes</label><textarea class="input" rows="3" style="resize:vertical" onchange="updateWine(\''+sid+'\',\'tastingNotes\',this.value)">'+esc(sel.tastingNotes||'')+'</textarea></div>'
         +'<div class="span2"><label>Food Pairing Notes</label><textarea class="input" rows="2" style="resize:vertical" onchange="updateWine(\''+sid+'\',\'pairingNotes\',this.value)">'+esc(sel.pairingNotes||'')+'</textarea></div>'
         +'<div class="span2"><label>General Notes</label><textarea class="input" rows="2" style="resize:vertical" onchange="updateWine(\''+sid+'\',\'notes\',this.value)">'+esc(sel.notes||'')+'</textarea></div>'
