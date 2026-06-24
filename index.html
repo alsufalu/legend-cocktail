@@ -867,7 +867,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">L</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.1</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.2</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1164,7 +1164,7 @@ function cocktailAbv(c){
 function shoppingList(){const im=ingMap(), cm=cockMap(), totals={}; state.menu.forEach(m=>{const c=cm[m.cocktailId]; if(!c)return; c.recipe.forEach(r=>{const i=im[r.ingredientId]; if(!i)return; const recipeUnit=i.recipeUnit||i.unit; const q=convertRecipeQty(Number(r.qty||0)*Number(m.servings||0),r.unit||recipeUnit,recipeUnit); totals[r.ingredientId]??={ingredient:i,totalQty:0}; totals[r.ingredientId].totalQty+=q;});}); return Object.values(totals).map(x=>({...x,packages:Math.ceil(x.totalQty/(Number(x.ingredient.yieldQty??x.ingredient.packageSize??1)||1)),estimatedCost:Math.ceil(x.totalQty/(Number(x.ingredient.yieldQty??x.ingredient.packageSize??1)||1))*Number(x.ingredient.purchaseCost??x.ingredient.packageCost??0),exactCost:x.totalQty*costPerRecipeUnit(x.ingredient)}));}
 function totals(){const list=shoppingList();return {menuCost:list.reduce((s,r)=>s+r.estimatedCost,0),servings:state.menu.reduce((s,r)=>s+Number(r.servings||0),0)}}
 function setTab(t){state.tab=t;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));render()}
-function updateIngredient(id,k,v){state.ingredients=state.ingredients.map(i=>{if(i.id!==id)return i; const n={...i,[k]:['packageSize','packageCost','purchaseQty','purchaseCost','yieldQty'].includes(k)?Number(v):v}; n.packageSize=Number(n.yieldQty??n.packageSize??1); n.packageCost=Number(n.purchaseCost??n.packageCost??0); n.unit=n.recipeUnit||n.unit; return n});render()}
+function updateIngredient(id,k,v){state.ingredients=state.ingredients.map(i=>{if(i.id!==id)return i; const n={...i,[k]:['packageSize','packageCost','purchaseQty','purchaseCost','yieldQty'].includes(k)?Number(v):v}; n.packageSize=Number(n.yieldQty??n.packageSize??1); n.packageCost=Number(n.purchaseCost??n.packageCost??0); n.unit=n.recipeUnit||n.unit; return n});saveData();render()}
 function deleteIngredient(id){
   const ing = ingMap()[id];
   const usedBy = cocktailsUsingIngredient(id);
@@ -1190,9 +1190,9 @@ function deleteIngredient(id){
   saveData();
   render();
 }
-function addCocktail(){const id='cocktail-'+Date.now();state.cocktails.push({id,name:'New Cocktail',category:'Signature Cocktail',notes:'',glass:'',served:'',build:'',garnish:'',specialInstructions:'',recipe:[]});state.selectedCocktailId=id;setTab('recipes')}
-function updateCocktail(field,value){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId);if(!c)return;c[field]=value;render()}
-function deleteCocktail(id){if(confirm('Delete this cocktail?')){state.cocktails=state.cocktails.filter(c=>c.id!==id);state.menu=state.menu.filter(m=>m.cocktailId!==id);state.selectedCocktailId=state.cocktails[0]?.id||'';render()}}
+function addCocktail(){const id='cocktail-'+Date.now();state.cocktails.push({id,name:'New Cocktail',category:'Signature Cocktail',notes:'',glass:'',served:'',build:'',garnish:'',specialInstructions:'',recipe:[]});state.selectedCocktailId=id;saveData();setTab('recipes')}
+function updateCocktail(field,value){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId);if(!c)return;c[field]=value;saveData();render()}
+function deleteCocktail(id){if(confirm('Delete this cocktail?')){state.cocktails=state.cocktails.filter(c=>c.id!==id);state.menu=state.menu.filter(m=>m.cocktailId!==id);state.selectedCocktailId=state.cocktails[0]?.id||'';saveData();render()}}
 function duplicateCocktail(id){
   const src=state.cocktails.find(c=>c.id===id);
   if(!src)return;
@@ -1206,9 +1206,9 @@ function duplicateCocktail(id){
   saveData();
   render();
 }
-function addRecipeLine(){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId); if(c){c.recipe.push({ingredientId:'',qty:1,unit:'oz'});render()}}
-function updateRecipe(idx,k,v){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId); if(!c)return; c.recipe[idx][k]=k==='qty'?Number(v):v; if(k==='ingredientId'){const ing=ingMap()[v]; c.recipe[idx].unit=ing?.unit||c.recipe[idx].unit;} render()}
-function deleteRecipe(idx){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId); c.recipe.splice(idx,1);render()}
+function addRecipeLine(){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId); if(c){c.recipe.push({ingredientId:'',qty:1,unit:'oz'});saveData();render()}}
+function updateRecipe(idx,k,v){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId); if(!c)return; c.recipe[idx][k]=k==='qty'?Number(v):v; if(k==='ingredientId'){const ing=ingMap()[v]; c.recipe[idx].unit=ing?.unit||c.recipe[idx].unit;} saveData();render()}
+function deleteRecipe(idx){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId); c.recipe.splice(idx,1);saveData();render()}
 // Auto-save current menu rows back into savedMenus if a menu is active
 function autoSaveActiveMenu(){
   if(!state.activeMenuId) return;
@@ -2408,9 +2408,9 @@ function renderShopping(){
     `<div style="display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:start">${leftCol}${rightCol}</div>`
   );
 }
-function addUnit(){state.units.push({id:'unit-'+Date.now(),label:'New Unit',abbr:'unit',type:'count',toBase:1});render()}
-function updateUnit(idx,k,v){state.units[idx][k]=k==='toBase'?Number(v):v;render()}
-function deleteUnit(idx){if(confirm('Delete this unit? Existing ingredients using it may need to be updated.')){state.units.splice(idx,1);render()}}
+function addUnit(){state.units.push({id:'unit-'+Date.now(),label:'New Unit',abbr:'unit',type:'count',toBase:1});saveData();render()}
+function updateUnit(idx,k,v){state.units[idx][k]=k==='toBase'?Number(v):v;saveData();render()}
+function deleteUnit(idx){if(confirm('Delete this unit? Existing ingredients using it may need to be updated.')){state.units.splice(idx,1);saveData();render()}}
 // ===== WINE CELLAR =====
 const WINE_TYPES=['red','white','rose','sparkling','dessert','fortified'];
 const WINE_TYPE_LABELS={red:'🍷 Red',white:'🥂 White',rose:'🌸 Rosé',sparkling:'🍾 Sparkling',dessert:'🍯 Dessert',fortified:'🏺 Fortified'};
