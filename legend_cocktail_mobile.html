@@ -698,13 +698,26 @@ function lineCost(r) {
 }
 function cocktailCost(c) { return (c.recipe||[]).reduce((s,r) => s+lineCost(r), 0); }
 function cocktailAbv(c) {
+  const NON_LIQUID = ['each','slice','piece','pcs','whole','sprig','leaf','leaves','twist','wedge','wheel','cube','stick','pinch','drop','drops'];
   let totalVol = 0, totalAlc = 0;
   (c.recipe||[]).forEach(r => {
     const i = ingMap()[r.ingredientId]; if (!i) return;
-    const vol = convertQty(r.qty, r.unit || i.unit, 'oz');
-    if (!isNaN(vol) && i.abv) { totalVol += vol; totalAlc += vol * (Number(i.abv)||0) / 100; }
+    const unit = (r.unit || i.unit || 'oz').toLowerCase().trim();
+    if (NON_LIQUID.includes(unit)) return; // skip garnishes
+    const vol = convertQty(r.qty, unit, 'oz');
+    if (isNaN(vol) || vol <= 0) return;
+    totalVol += vol;
+    totalAlc += vol * (Number(i.abv||0) / 100);
   });
-  return totalVol > 0 ? (totalAlc/totalVol*100) : null;
+  if (totalVol <= 0) return null;
+  // Apply dilution by build method
+  const build = (c.build||'').toLowerCase();
+  let dilution = 0.20;
+  if (build.includes('stir')) dilution = 0.15;
+  else if (build.includes('build')) dilution = 0.10;
+  else if (build.includes('blend')) dilution = 0.25;
+  const postAbv = (totalAlc / (totalVol * (1 + dilution))) * 100;
+  return postAbv;
 }
 function getMenuCocktail(m) { return state.cocktails.find(x => x.id === (m.cocktailId || m.id || m.cocktail_id)); }
 function totals() {

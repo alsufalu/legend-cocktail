@@ -1142,7 +1142,8 @@ function cocktailAbv(c){
     const ing=im[r.ingredientId];
     if(!ing) return;
     const unit=(r.unit||ing.recipeUnit||'oz').toLowerCase().trim();
-    if(unit==='each') return; // skip garnishes/non-liquids
+    const NON_LIQUID=['each','slice','piece','pcs','whole','sprig','leaf','leaves','twist','wedge','wheel','cube','stick','pinch','drop','drops'];
+    if(NON_LIQUID.includes(unit)) return; // skip garnishes/non-liquids
     const oz=unitToOz(Number(r.qty||0), unit);
     totalLiquid += oz;
     const abv=Number(ing.abv||0);
