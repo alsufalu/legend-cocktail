@@ -850,6 +850,71 @@ function saveWineSheet(){
   closeWineSheet();saveData();render();
 }
 function deleteWine(id){if(!confirm('Delete this wine?'))return;state.wines=(state.wines||[]).filter(w=>w.id!==id);closeWineSheet();saveData();render();}
+
+function parseCSVRow(row){
+  const result=[]; let cur=''; let inQ=false;
+  for(let i=0;i<row.length;i++){
+    const ch=row[i];
+    if(ch==='"'){if(inQ&&row[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+    else if(ch===','&&!inQ){result.push(cur);cur='';}
+    else cur+=ch;
+  }
+  result.push(cur);
+  return result;
+}
+
+function importWineCSV(input){
+  const file=input.files[0]; if(!file)return;
+  input.value='';
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const text=e.target.result;
+      const lines=text.split(/\r?\n/);
+      if(lines.length<2){showSnack('CSV appears empty.');return;}
+      const headers=parseCSVRow(lines[0]);
+      const VALID_TYPES=['red','white','rosé','rose','sparkling','dessert','fortified','orange','natural'];
+      const VALID_STATUS=['in_cellar','consumed','gifted','sold'];
+      if(!Array.isArray(state.wines))state.wines=[];
+      let imported=0, skipped=0;
+      for(let i=1;i<lines.length;i++){
+        const row=lines[i].trim(); if(!row)continue;
+        const cols=parseCSVRow(row);
+        const obj={};
+        headers.forEach((h,idx)=>{obj[h.trim()]=(cols[idx]||'').trim();});
+        const w=newWine();
+        const str=k=>obj[k]||'';
+        const num=k=>isNaN(parseFloat(obj[k]))?0:parseFloat(obj[k]);
+        w.name=str('name'); w.producer=str('producer'); w.vintage=str('vintage');
+        w.varietal=str('varietal');
+        const rawType=(str('wineType')||'red').toLowerCase().replace('é','e');
+        w.wineType=VALID_TYPES.includes(rawType)?rawType:'red';
+        w.country=str('country'); w.region=str('region'); w.appellation=str('appellation');
+        w.bottleSize=str('bottleSize')||'750ml';
+        w.quantity=Math.max(0,num('quantity')||1);
+        w.purchasePrice=num('purchasePrice'); w.currentValue=num('currentValue');
+        w.purchaseDate=str('purchaseDate'); w.deliveryDate=str('deliveryDate');
+        w.vendor=str('vendor'); w.peakDrinking=str('peakDrinking');
+        w.personalRating=str('personalRating');
+        const rawStatus=str('status').toLowerCase();
+        w.status=VALID_STATUS.includes(rawStatus)?rawStatus:'in_cellar';
+        w.bin=str('bin'); w.tastingNotes=str('tastingNotes');
+        w.pairingNotes=str('pairingNotes'); w.notes=str('notes');
+        w.occasion=str('occasion'); w.sharedWith=str('sharedWith');
+        const locName=str('storageName')||str('storageLocation')||'';
+        if(locName){const loc=(state.storageLocations||[]).find(l=>l.name.toLowerCase()===locName.toLowerCase());if(loc)w.storageLocationId=loc.id;}
+        if(!w.name){skipped++;continue;}
+        w.id='wine_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,5);
+        state.wines.push(w);
+        imported++;
+      }
+      saveData();render();
+      showSnack('Imported '+imported+' wine'+(imported!==1?'s':'')+(skipped?' ('+skipped+' skipped)':''));
+    }catch(err){showSnack('Error: '+err.message);}
+  };
+  reader.readAsText(file);
+}
+
 function renderWineSheetBody(){
   const w=wineDraft;
   const locId=w.storageLocationId||'';
@@ -949,7 +1014,8 @@ function renderCellar(){
         +'</div>'
       +'</div>';
     }).join('');
-  return '<div class="page-header"><div class="page-title">Wine Cellar</div><button class="page-action" onclick="openWineSheet()">+ Add</button></div>'
+  return '<div class="page-header"><div class="page-title">Wine Cellar</div><div style="display:flex;gap:6px"><button class="page-action" style="font-size:12px;padding:4px 8px" onclick="document.getElementById(\'wineImportInput\').click()">⬆ CSV</button><button class="page-action" onclick="openWineSheet()">+ Add</button></div></div>'
+    +'<input type="file" id="wineImportInput" accept=".csv" style="display:none" onchange="importWineCSV(this)">'
     +'<div class="search-wrap"><input class="search-input" placeholder="Search wines…" value="'+esc(wineSearch)+'" oninput="wineSearch=this.value;render()"/></div>'
     +stats
     +'<div class="pill-row" style="overflow-x:auto;white-space:nowrap;padding-bottom:4px;">'+typePills+'</div>'
