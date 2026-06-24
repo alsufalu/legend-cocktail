@@ -8,8 +8,19 @@
   <meta name="apple-mobile-web-app-title" content="Shaker &amp; Cellar"/>
   <meta name="theme-color" content="#1c2437"/>
   <title>Shaker &amp; Cellar</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍸</text></svg>"/>
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍸</text></svg>"/>
+  <link rel="icon" id="dynamicFavicon" type="image/png" href=""/>
+  <script>
+    (function(){
+      try {
+        const c=document.createElement('canvas'); c.width=64; c.height=64;
+        const ctx=c.getContext('2d');
+        ctx.fillStyle='#1c2437'; ctx.beginPath(); ctx.roundRect(0,0,64,64,12); ctx.fill();
+        ctx.font='42px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('🍸',32,34);
+        document.getElementById('dynamicFavicon').href=c.toDataURL('image/png');
+      } catch(e){}
+    })();
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
@@ -413,6 +424,8 @@ const BARCODE_LOOKUP_KEY = 'kpfn4azvfrp8icevhl913vcx71ll26';
 const SUPABASE_URL = 'https://dcydmngafvdhxxjptexh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjeWRtbmdhZnZkaHh4anB0ZXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0OTIxNzcsImV4cCI6MjA5NjA2ODE3N30.bqSr83R3PGNNJN0FlFTjwGJyXOFz6RMlge95HquCw3E';
 const ADMIN_EMAIL = 'aerubio1@yahoo.com';
+const TEMPLATE_USER_ID = '4d816642-6316-4733-a378-45bb2c9a79ce';
+const SEED_COCKTAILS = ['margarita','old fashioned','slow mojito','manhattan','sazerac','vodka martini','aperol spritz','hugo spritz'];
 const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 
@@ -489,6 +502,34 @@ async function loadFromCloud() {
   } catch(e) { setCloudStatus('⚠ Offline', 'error'); return false; }
 }
 
+async function seedNewUserFromAdmin() {
+  try {
+    setCloudStatus('☁ Setting up account…', '');
+    const {data, error} = await sbClient.from('app_data')
+      .select('data').eq('id', TEMPLATE_USER_ID).maybeSingle();
+    if (error || !data?.data) { setCloudStatus('☁ Ready', ''); return false; }
+    const src = data.data;
+    // All ingredients
+    state.ingredients = JSON.parse(JSON.stringify(src.ingredients || []));
+    // Only the specified starter cocktails (case-insensitive match)
+    state.cocktails = (src.cocktails || []).filter(c =>
+      SEED_COCKTAILS.some(name => (c.name || '').toLowerCase().includes(name))
+    ).map(c => JSON.parse(JSON.stringify(c)));
+    // Copy units and storage locations too
+    state.units = src.units && src.units.length ? JSON.parse(JSON.stringify(src.units)) : defaultUnits;
+    state.storageLocations = JSON.parse(JSON.stringify(src.storageLocations || []));
+    // Save immediately so this only runs once
+    localStorage.setItem(STORAGE_KEY + '_' + currentUser.id, JSON.stringify(state));
+    syncToCloud();
+    setCloudStatus('☁ Synced', 'synced');
+    return true;
+  } catch(e) {
+    console.warn('Seed failed:', e);
+    setCloudStatus('☁ Ready', '');
+    return false;
+  }
+}
+
 // ===== AUTH =====
 let authMode = 'signin';
 function switchAuthTab(mode) {
@@ -553,6 +594,14 @@ async function initApp() {
   renderMetrics(); render();
   const updated = await loadFromCloud();
   if (updated) { renderMetrics(); render(); }
+  // New user with no data — seed from admin's ingredients + starter cocktails
+  if (state.ingredients.length === 0 && state.cocktails.length === 0 && currentUser.email !== ADMIN_EMAIL && currentUser.id !== TEMPLATE_USER_ID) {
+    const seeded = await seedNewUserFromAdmin();
+    if (seeded) {
+      showSnack('Welcome! Your starter ingredients and cocktail recipes are ready 🍸');
+      renderMetrics(); render();
+    }
+  }
   if (currentUser.email === ADMIN_EMAIL) {
     const {data} = await sbClient.from('share_keys').select('key').eq('owner_id', currentUser.id).maybeSingle();
     if (data) { const el = document.getElementById('myShareKey'); if(el) el.value = data.key; }
@@ -1738,10 +1787,11 @@ function saveMenuItemSheet() {}
 function deleteMenuItem() {}
 
 // ===== SHOPPING TAB =====
-function buildShoppingFromMenu() {
+let shoppingSourceId = null; // null = use state.menu, otherwise a savedMenus[].id
+
+function buildShoppingFromItems(menuItems) {
   const ingUsage = {};
-  const menuItems = Array.isArray(state.menu) ? state.menu : [];
-  menuItems.forEach(m => {
+  (Array.isArray(menuItems) ? menuItems : []).forEach(m => {
     const c = getMenuCocktail(m); if (!c) return;
     (c.recipe||[]).forEach(r => {
       if (!r.ingredientId) return;
@@ -1753,11 +1803,32 @@ function buildShoppingFromMenu() {
   return ingUsage;
 }
 
+function buildShoppingFromMenu() {
+  // If a saved menu is selected as source, use its items; otherwise fall back to state.menu
+  if (shoppingSourceId) {
+    const m = (state.savedMenus||[]).find(m => m.id === shoppingSourceId);
+    if (m) return buildShoppingFromItems(m.items||[]);
+  }
+  // Auto-pick first saved menu if state.menu is empty
+  if ((!state.menu || state.menu.length === 0) && (state.savedMenus||[]).length > 0) {
+    shoppingSourceId = state.savedMenus[0].id;
+    return buildShoppingFromItems(state.savedMenus[0].items||[]);
+  }
+  return buildShoppingFromItems(state.menu);
+}
+
 function renderShopping() {
-  const savedLists = Array.isArray(state.savedShoppingLists) ? state.savedShoppingLists : [];
+  const savedMenus = Array.isArray(state.savedMenus) ? state.savedMenus : [];
+  const savedLists  = Array.isArray(state.savedShoppingLists) ? state.savedShoppingLists : [];
+
+  // Determine active source label
+  const activeMenu = shoppingSourceId ? savedMenus.find(m => m.id === shoppingSourceId) : null;
+
   const ingUsage = buildShoppingFromMenu();
   const im = ingMap();
-  const totalCost = Object.entries(ingUsage).reduce((s,[id,u]) => { const i = im[id]; return s + (i ? u.qty * costPerUnit(i) : 0); }, 0);
+  const totalCost = Object.entries(ingUsage).reduce((s,[id,u]) => {
+    const i = im[id]; return s + (i ? u.qty * costPerUnit(i) : 0);
+  }, 0);
 
   const rows = Object.entries(ingUsage).map(([id, usage]) => {
     const i = im[id]; if (!i) return '';
@@ -1777,6 +1848,18 @@ function renderShopping() {
     </button>`;
   }).join('');
 
+  // Menu picker dropdown
+  const menuPicker = savedMenus.length > 0 ? `
+    <div style="padding:0 16px 12px;">
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);display:block;margin-bottom:6px;">Build from menu</label>
+      <select onchange="shoppingSourceId=this.value||null;render()"
+        style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-size:14px;font-family:inherit;color:var(--ink);">
+        ${savedMenus.map(m =>
+          `<option value="${m.id}"${(shoppingSourceId===m.id||(shoppingSourceId===null&&m===savedMenus[0]))?'  selected':''}>${esc(m.name)}</option>`
+        ).join('')}
+      </select>
+    </div>` : '';
+
   const savedListsHtml = savedLists.length === 0 ? '' : `
     <div class="section-header">Saved Shopping Lists</div>
     <div style="padding:0 16px 8px;">
@@ -1794,6 +1877,7 @@ function renderShopping() {
     <div class="page-header">
       <div class="page-title">Shopping List</div>
     </div>
+    ${menuPicker}
     ${Object.keys(ingUsage).length > 0 ? `
       <div style="margin:0 16px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;box-shadow:var(--shadow-sm);">
         <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;">Est. Shopping Cost</div>
@@ -1803,9 +1887,8 @@ function renderShopping() {
         <button class="btn btn-secondary btn-sm" onclick="saveShoppingList()">💾 Save List</button>
         <button class="btn btn-secondary btn-sm" onclick="shareShoppingList()" style="font-size:16px;padding:8px 12px;" title="Share">⬆️</button>
       </div>
-      <div class="section-header">From Current Menu</div>
-      <div class="card-list">${rows}</div>
-    ` : `<div class="empty"><div class="empty-icon">🛒</div><div class="empty-title">No shopping list yet</div><div class="empty-sub">Load a menu in Menu Builder → Setup first</div></div>`}
+      <div class="card-list" style="padding:0 16px;">${rows}</div>
+    ` : `<div class="empty"><div class="empty-icon">🛒</div><div class="empty-title">No items yet</div><div class="empty-sub">${savedMenus.length===0?'Build a menu first — add cocktails and set servings':'Select a menu above and make sure servings are set'}</div></div>`}
     ${savedListsHtml}
   `;
 }
