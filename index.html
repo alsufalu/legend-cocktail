@@ -867,7 +867,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">L</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.3</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.4</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -2650,6 +2650,33 @@ function estimatePeakDrinking(wine){
   return peak(2,7);
 }
 
+async function lookupWineRatings(wineId){
+  const w=wineById(wineId); if(!w)return;
+  const btn=document.getElementById('wineRatingsBtn_'+wineId);
+  if(btn){btn.disabled=true;btn.textContent='⏳ Looking up…';}
+  try{
+    const {data,error}=await sbClient.functions.invoke('wine-ratings',{
+      body:{wine_name:w.name||'',vintage:w.vintage||'',producer:w.producer||''}
+    });
+    if(error)throw error;
+    if(data.found&&data.ct_score!=null){
+      w.ctScore=data.ct_score;
+      w.ctNumRatings=data.ct_num_ratings;
+      w.ctDrinkWindow=data.drink_window||'';
+      w.ctLookedUp=new Date().toISOString();
+      if(data.drink_window&&!w.peakDrinking)w.peakDrinking=data.drink_window;
+      saveData();render();
+    } else {
+      if(btn){btn.disabled=false;btn.textContent='🔍 Look Up Scores';}
+      alert('No ratings found for "'+w.name+(w.vintage?' '+w.vintage:'')+'" on CellarTracker.\nTry checking the wine name and vintage are filled in correctly.');
+    }
+  }catch(err){
+    if(btn){btn.disabled=false;btn.textContent='🔍 Look Up Scores';}
+    console.error('Wine ratings lookup failed:',err);
+    alert('Lookup failed: '+(err.message||String(err)));
+  }
+}
+
 function applyPeakEstimate(wineId){
   const w=wineById(wineId); if(!w)return;
   const est=estimatePeakDrinking(w);
@@ -2763,6 +2790,21 @@ function renderCellar(){
       +'</div>'
       // — Notes & Ratings
       +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">Notes & Ratings</div>'
+      +(sel.ctScore!=null
+        ?'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:16px">'
+          +'<div style="text-align:center;min-width:56px">'
+            +'<div style="font-size:34px;font-weight:900;line-height:1;color:var(--accent)">'+Math.round(sel.ctScore)+'</div>'
+            +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-top:2px">CT Score</div>'
+          +'</div>'
+          +'<div style="flex:1;font-size:12px;color:var(--ink2);line-height:1.6">'
+            +'<strong style="color:var(--ink)">CellarTracker Community</strong><br>'
+            +(sel.ctNumRatings?sel.ctNumRatings.toLocaleString()+' ratings · ':'')
+            +(sel.ctDrinkWindow?'Drink: '+sel.ctDrinkWindow+'<br>':'')
+            +'<span style="font-size:10px;color:var(--ink3)">via cellartracker.com</span>'
+          +'</div>'
+          +'<button class="secondary" style="font-size:11px;padding:4px 8px;white-space:nowrap" id="wineRatingsBtn_'+sid+'" onclick="lookupWineRatings(\''+sid+'\')">↻ Refresh</button>'
+        +'</div>'
+        :'')
       +'<div class="formgrid">'
         +'<div><label>Pre-drink Rating (0–100)</label><input class="input" type="number" min="0" max="100" value="'+esc(sel.personalRating||'')+'" placeholder="92" onchange="updateWine(\''+sid+'\',\'personalRating\',this.value)"></div>'
         +'<div><label>Peak Drinking Window</label><div style="display:flex;gap:6px;align-items:center"><input class="input" style="flex:1" value="'+esc(sel.peakDrinking||'')+'" placeholder="2025 – 2035" onchange="updateWine(\''+sid+'\',\'peakDrinking\',this.value)"><button class="secondary" style="white-space:nowrap;font-size:11px;padding:4px 8px" title="Auto-estimate from varietal, region & vintage" onclick="applyPeakEstimate(\''+sid+'\')">✨ Estimate</button></div></div>'
@@ -2781,7 +2823,10 @@ function renderCellar(){
            +'<div class="span2"><label>Tasting Notes After Drinking</label><textarea class="input" rows="3" style="resize:vertical" placeholder="How did it actually taste? Did it live up to expectations?" onchange="updateWine(\''+sid+'\',\'consumedNotes\',this.value)">'+esc(sel.consumedNotes||'')+'</textarea></div>'
          +'</div>'
         :'')
-      +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px">'
+      +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+        +(sel.ctScore==null
+          ?'<button class="secondary" id="wineRatingsBtn_'+sid+'" onclick="lookupWineRatings(\''+sid+'\')" style="font-size:12px">🔍 Look Up Scores</button>'
+          :'<button class="secondary" id="wineRatingsBtn_'+sid+'" onclick="lookupWineRatings(\''+sid+'\')" style="font-size:12px">↻ Refresh Scores</button>')
         +'<button class="delete" style="margin-left:auto" onclick="deleteWine(\''+sid+'\')">✕ Delete Wine</button>'
       +'</div>'
     +'</div>';
