@@ -867,7 +867,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">L</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.4</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.5</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -2677,6 +2677,160 @@ async function lookupWineRatings(wineId){
   }
 }
 
+function estimateWineScore(wine){
+  const type=(wine.wineType||'').toLowerCase();
+  const vari=(wine.varietal||'').toLowerCase();
+  const country=(wine.country||'').toLowerCase();
+  const region=(wine.region||'').toLowerCase();
+  const app=(wine.appellation||'').toLowerCase();
+  const producer=(wine.producer||'').toLowerCase();
+  const name=(wine.name||'').toLowerCase();
+  const all=[name,producer,vari,region,app,country].join(' ');
+  const vintage=parseInt(wine.vintage);
+  let lo=82,hi=87;
+  function lift(a,b){if(a>lo)lo=a;if(b>hi)hi=b;}
+  // Iconic producers
+  const iconic=['petrus','romanee-conti','romanée-conti','screaming eagle','harlan','opus one','sassicaia','masseto','ornellaia','sine qua non','colgin','bryant family','le pin','lafleur','penfolds grange','vega sicilia','pingus','leroy','armand rousseau','coche-dury','comtes lafon','d\'yquem','yquem'];
+  if(iconic.some(p=>all.includes(p)))lift(94,99);
+  // Top producers
+  const top=['ridge','caymus','silver oak','joseph phelps','far niente','dalla valle','dominus','kosta browne','williams selyem','rochioli','gaja','giacomo conterno','bruno giacosa','vietti','antinori','frescobaldi','chapoutier','guigal','jaboulet','zind humbrecht','trimbach','hugel','felton road','henschke','stag\'s leap'];
+  if(top.some(p=>all.includes(p)))lift(91,96);
+  // Appellation tier
+  if(app.includes('premier grand cru class'))lift(92,97);
+  if(app.includes('grand cru'))lift(93,98);
+  if(app.includes('premier cru')||app.includes('1er cru'))lift(90,95);
+  if(app.includes('grand cru class')||(app.includes('class')&&(region.includes('bordeaux')||region.includes('médoc')||region.includes('medoc'))))lift(88,93);
+  if(app.includes('gran reserva')||name.includes('gran reserva'))lift(90,95);
+  if(app.includes('gran selezione'))lift(91,96);
+  if((app.includes('riserva')||name.includes('riserva'))&&!app.includes('gran'))lift(88,93);
+  if((app.includes('reserva')||name.includes('reserva'))&&!app.includes('gran'))lift(87,92);
+  if(app.includes('docg'))lift(85,91);
+  // France
+  if(country.includes('france')){
+    if(['pauillac','margaux','saint-julien','saint-estèphe','saint-estephe'].some(r=>region.includes(r)))lift(88,94);
+    if(['pomerol','saint-émilion','saint-emilion'].some(r=>region.includes(r)))lift(87,93);
+    if(region.includes('sauternes')||region.includes('barsac'))lift(90,96);
+    if(['gevrey','chambolle','vosne','nuits'].some(r=>region.includes(r)))lift(88,94);
+    if(['pommard','volnay','meursault','puligny','chassagne','montrachet'].some(r=>region.includes(r)))lift(87,93);
+    if(region.includes('chablis'))lift(86,92);
+    if(region.includes('hermitage')||region.includes('côte-rôtie')||region.includes('cote-rotie')||region.includes('cornas'))lift(90,96);
+    if(region.includes('châteauneuf')||region.includes('chateauneuf'))lift(88,94);
+    if(region.includes('alsace'))lift(86,92);
+    if(region.includes('champagne'))lift(87,93);
+    if(['sancerre','pouilly','vouvray','chinon'].some(r=>region.includes(r)))lift(85,91);
+    if(region.includes('bordeaux')||region.includes('médoc')||region.includes('medoc'))lift(84,90);
+    if(region.includes('burgundy')||region.includes('bourgogne'))lift(84,90);
+  }
+  // Italy
+  if(country.includes('italy')){
+    if(region.includes('barolo')||region.includes('barbaresco')||vari.includes('nebbiolo'))lift(90,96);
+    if(region.includes('brunello')||region.includes('montalcino'))lift(91,97);
+    if(region.includes('bolgheri'))lift(89,94);
+    if(region.includes('amarone')||vari.includes('amarone'))lift(89,94);
+    if(region.includes('chianti classico'))lift(86,92);
+    if(region.includes('chianti'))lift(83,88);
+    if(region.includes('etna'))lift(87,93);
+    if(region.includes('soave')||region.includes('gavi'))lift(83,88);
+  }
+  // Spain
+  if(country.includes('spain')){
+    if(region.includes('priorat'))lift(90,95);
+    if(region.includes('ribera'))lift(88,93);
+    if(region.includes('rioja'))lift(85,91);
+    if(region.includes('rías baixas')||region.includes('rias baixas'))lift(85,90);
+  }
+  // USA
+  if(country.includes('usa')||country.includes('united states')){
+    if(region.includes('napa')){if(vari.includes('cabernet')||vari.includes('cab'))lift(89,95);else lift(86,92);}
+    if(region.includes('sonoma'))lift(87,92);
+    if(region.includes('willamette')||region.includes('oregon'))lift(88,93);
+    if(region.includes('washington')||region.includes('columbia')||region.includes('walla walla'))lift(87,92);
+    if(region.includes('paso robles')||region.includes('santa barbara'))lift(85,90);
+  }
+  // Australia
+  if(country.includes('australia')){
+    if(region.includes('barossa')||region.includes('mclaren'))lift(88,94);
+    if(region.includes('eden valley')||region.includes('clare'))lift(87,92);
+    if(region.includes('margaret river')||region.includes('coonawarra'))lift(87,92);
+    if(region.includes('yarra')||region.includes('mornington'))lift(86,91);
+  }
+  // Argentina / Chile / NZ / Germany / Portugal / Austria
+  if(country.includes('argentina')){
+    if(region.includes('luján')||region.includes('lujan')||region.includes('uco'))lift(88,93);
+    else lift(86,92);
+  }
+  if(country.includes('chile'))lift(84,90);
+  if(country.includes('new zealand')){
+    if(region.includes('central otago'))lift(88,93);
+    else lift(86,92);
+  }
+  if(country.includes('germany')){
+    if(['mosel','rheingau','pfalz','rheinhessen'].some(r=>region.includes(r)))lift(88,94);
+    else lift(85,91);
+  }
+  if(country.includes('portugal')){
+    if(region.includes('douro'))lift(87,93);
+    if(vari.includes('port')||vari.includes('porto'))lift(88,94);
+  }
+  if(country.includes('austria')){
+    if(region.includes('wachau')||region.includes('kremstal')||region.includes('kamptal'))lift(88,94);
+    else lift(85,91);
+  }
+  // Wine type overrides
+  if(type==='sparkling'){
+    if(country.includes('france')&&region.includes('champagne')){
+      const nv=(wine.vintage||'').toLowerCase();
+      if(!nv||nv==='nv'||nv==='n/v')lift(86,91);else lift(89,95);
+    } else lift(82,87);
+  }
+  if(type==='dessert'){
+    if(region.includes('sauternes')||vari.includes('sautern'))lift(91,97);
+    if(vari.includes('trockenbeerenauslese'))lift(92,98);
+    if(vari.includes('beerenauslese'))lift(90,96);
+    if(vari.includes('tokaj')||region.includes('tokaj'))lift(90,96);
+    if(vari.includes('eiswein')||vari.includes('ice wine'))lift(90,96);
+    if(vari.includes('auslese'))lift(88,93);
+    else lift(87,93);
+  }
+  if(type==='fortified'){
+    if(vari.includes('vintage port')||(vari.includes('port')&&!vari.includes('tawny')))lift(90,96);
+    if(vari.includes('madeira'))lift(88,94);
+    else lift(85,91);
+  }
+  // Vintage quality bonus/penalty
+  if(!isNaN(vintage)){
+    const greatBdx=[2000,2005,2009,2010,2015,2016,2018,2019,2020];
+    const poorBdx=[2011,2013,2017];
+    const greatBurg=[2005,2010,2012,2015,2019,2020];
+    const poorBurg=[2011,2013,2014];
+    const greatNapa=[2001,2002,2007,2012,2013,2014,2015,2016,2018,2019];
+    const greatPied=[2010,2013,2015,2016,2019];
+    let bonus=0;
+    const fr=country.includes('france'), it=country.includes('italy'), us=country.includes('usa')||country.includes('united states');
+    const bdx=region.includes('bordeaux')||region.includes('médoc')||region.includes('medoc')||region.includes('pauillac')||region.includes('margaux');
+    const burg=region.includes('burgundy')||region.includes('bourgogne');
+    const pied=region.includes('barolo')||region.includes('barbaresco');
+    if(fr&&bdx&&greatBdx.includes(vintage))bonus=2;
+    if(fr&&bdx&&poorBdx.includes(vintage))bonus=-2;
+    if(fr&&burg&&greatBurg.includes(vintage))bonus=2;
+    if(fr&&burg&&poorBurg.includes(vintage))bonus=-2;
+    if(us&&region.includes('napa')&&greatNapa.includes(vintage))bonus=2;
+    if(it&&pied&&greatPied.includes(vintage))bonus=2;
+    lo=Math.max(75,lo+bonus); hi=Math.min(100,hi+bonus);
+  }
+  const mid=Math.round((lo+hi)/2);
+  const label=mid>=95?'Exceptional':mid>=90?'Outstanding':mid>=85?'Very Good':mid>=80?'Good':'Above Average';
+  return {lo,hi,label,display:lo+'–'+hi+' est.',mid};
+}
+
+function applyScoreEstimate(wineId){
+  const w=wineById(wineId); if(!w)return;
+  const est=estimateWineScore(w);
+  w.estScoreLo=est.lo; w.estScoreHi=est.hi;
+  w.estScoreLabel=est.label; w.estScoreDisplay=est.display;
+  saveData(); render();
+}
+
 function applyPeakEstimate(wineId){
   const w=wineById(wineId); if(!w)return;
   const est=estimatePeakDrinking(w);
@@ -2790,19 +2944,18 @@ function renderCellar(){
       +'</div>'
       // — Notes & Ratings
       +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">Notes & Ratings</div>'
-      +(sel.ctScore!=null
+      +(sel.estScoreLo!=null
         ?'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:16px">'
-          +'<div style="text-align:center;min-width:56px">'
-            +'<div style="font-size:34px;font-weight:900;line-height:1;color:var(--accent)">'+Math.round(sel.ctScore)+'</div>'
-            +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-top:2px">CT Score</div>'
+          +'<div style="text-align:center;min-width:70px">'
+            +'<div style="font-size:22px;font-weight:900;line-height:1;color:var(--accent)">'+sel.estScoreLo+'–'+sel.estScoreHi+'</div>'
+            +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-top:2px">est. score</div>'
           +'</div>'
           +'<div style="flex:1;font-size:12px;color:var(--ink2);line-height:1.6">'
-            +'<strong style="color:var(--ink)">CellarTracker Community</strong><br>'
-            +(sel.ctNumRatings?sel.ctNumRatings.toLocaleString()+' ratings · ':'')
-            +(sel.ctDrinkWindow?'Drink: '+sel.ctDrinkWindow+'<br>':'')
-            +'<span style="font-size:10px;color:var(--ink3)">via cellartracker.com</span>'
+            +'<strong style="color:var(--ink)">'+esc(sel.estScoreLabel||'')+'</strong><br>'
+            +'Based on region, appellation &amp; vintage<br>'
+            +'<span style="font-size:10px;color:var(--ink3)">Rule-based estimate · 100-pt scale</span>'
           +'</div>'
-          +'<button class="secondary" style="font-size:11px;padding:4px 8px;white-space:nowrap" id="wineRatingsBtn_'+sid+'" onclick="lookupWineRatings(\''+sid+'\')">↻ Refresh</button>'
+          +'<button class="secondary" style="font-size:11px;padding:4px 8px;white-space:nowrap" onclick="applyScoreEstimate(\''+sid+'\')">↻ Re-estimate</button>'
         +'</div>'
         :'')
       +'<div class="formgrid">'
@@ -2824,9 +2977,7 @@ function renderCellar(){
          +'</div>'
         :'')
       +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-        +(sel.ctScore==null
-          ?'<button class="secondary" id="wineRatingsBtn_'+sid+'" onclick="lookupWineRatings(\''+sid+'\')" style="font-size:12px">🔍 Look Up Scores</button>'
-          :'<button class="secondary" id="wineRatingsBtn_'+sid+'" onclick="lookupWineRatings(\''+sid+'\')" style="font-size:12px">↻ Refresh Scores</button>')
+        +'<button class="secondary" onclick="applyScoreEstimate(\''+sid+'\')" style="font-size:12px">✨ Estimate Score</button>'
         +'<button class="delete" style="margin-left:auto" onclick="deleteWine(\''+sid+'\')">✕ Delete Wine</button>'
       +'</div>'
     +'</div>';

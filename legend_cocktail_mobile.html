@@ -319,7 +319,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">L</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.4</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.5</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1001,6 +1001,109 @@ async function lookupWineRatingsMobile(){
   }
 }
 
+function estimateWineScore(wine){
+  const type=(wine.wineType||'').toLowerCase();
+  const vari=(wine.varietal||'').toLowerCase();
+  const country=(wine.country||'').toLowerCase();
+  const region=(wine.region||'').toLowerCase();
+  const app=(wine.appellation||'').toLowerCase();
+  const producer=(wine.producer||'').toLowerCase();
+  const name=(wine.name||'').toLowerCase();
+  const all=[name,producer,vari,region,app,country].join(' ');
+  const vintage=parseInt(wine.vintage);
+  let lo=82,hi=87;
+  function lift(a,b){if(a>lo)lo=a;if(b>hi)hi=b;}
+  const iconic=['petrus','romanee-conti','romanée-conti','screaming eagle','harlan','opus one','sassicaia','masseto','ornellaia','sine qua non','colgin','bryant family','le pin','lafleur','penfolds grange','vega sicilia','pingus','leroy','armand rousseau','coche-dury','comtes lafon','d\'yquem','yquem'];
+  if(iconic.some(p=>all.includes(p)))lift(94,99);
+  const top=['ridge','caymus','silver oak','joseph phelps','far niente','dalla valle','dominus','kosta browne','williams selyem','rochioli','gaja','giacomo conterno','bruno giacosa','vietti','antinori','frescobaldi','chapoutier','guigal','jaboulet','zind humbrecht','trimbach','hugel','felton road','henschke','stag\'s leap'];
+  if(top.some(p=>all.includes(p)))lift(91,96);
+  if(app.includes('premier grand cru class'))lift(92,97);
+  if(app.includes('grand cru'))lift(93,98);
+  if(app.includes('premier cru')||app.includes('1er cru'))lift(90,95);
+  if(app.includes('grand cru class')||(app.includes('class')&&(region.includes('bordeaux')||region.includes('médoc')||region.includes('medoc'))))lift(88,93);
+  if(app.includes('gran reserva')||name.includes('gran reserva'))lift(90,95);
+  if(app.includes('gran selezione'))lift(91,96);
+  if((app.includes('riserva')||name.includes('riserva'))&&!app.includes('gran'))lift(88,93);
+  if((app.includes('reserva')||name.includes('reserva'))&&!app.includes('gran'))lift(87,92);
+  if(app.includes('docg'))lift(85,91);
+  if(country.includes('france')){
+    if(['pauillac','margaux','saint-julien','saint-estèphe','saint-estephe'].some(r=>region.includes(r)))lift(88,94);
+    if(['pomerol','saint-émilion','saint-emilion'].some(r=>region.includes(r)))lift(87,93);
+    if(region.includes('sauternes')||region.includes('barsac'))lift(90,96);
+    if(['gevrey','chambolle','vosne','nuits'].some(r=>region.includes(r)))lift(88,94);
+    if(['pommard','volnay','meursault','puligny','chassagne','montrachet'].some(r=>region.includes(r)))lift(87,93);
+    if(region.includes('chablis'))lift(86,92);
+    if(region.includes('hermitage')||region.includes('côte-rôtie')||region.includes('cote-rotie')||region.includes('cornas'))lift(90,96);
+    if(region.includes('châteauneuf')||region.includes('chateauneuf'))lift(88,94);
+    if(region.includes('alsace'))lift(86,92);
+    if(region.includes('champagne'))lift(87,93);
+    if(['sancerre','pouilly','vouvray','chinon'].some(r=>region.includes(r)))lift(85,91);
+    if(region.includes('bordeaux')||region.includes('médoc')||region.includes('medoc'))lift(84,90);
+    if(region.includes('burgundy')||region.includes('bourgogne'))lift(84,90);
+  }
+  if(country.includes('italy')){
+    if(region.includes('barolo')||region.includes('barbaresco')||vari.includes('nebbiolo'))lift(90,96);
+    if(region.includes('brunello')||region.includes('montalcino'))lift(91,97);
+    if(region.includes('bolgheri'))lift(89,94);
+    if(region.includes('amarone')||vari.includes('amarone'))lift(89,94);
+    if(region.includes('chianti classico'))lift(86,92);
+    if(region.includes('chianti'))lift(83,88);
+    if(region.includes('etna'))lift(87,93);
+  }
+  if(country.includes('spain')){
+    if(region.includes('priorat'))lift(90,95);
+    if(region.includes('ribera'))lift(88,93);
+    if(region.includes('rioja'))lift(85,91);
+    if(region.includes('rías baixas')||region.includes('rias baixas'))lift(85,90);
+  }
+  if(country.includes('usa')||country.includes('united states')){
+    if(region.includes('napa')){if(vari.includes('cabernet')||vari.includes('cab'))lift(89,95);else lift(86,92);}
+    if(region.includes('sonoma'))lift(87,92);
+    if(region.includes('willamette')||region.includes('oregon'))lift(88,93);
+    if(region.includes('washington')||region.includes('columbia')||region.includes('walla walla'))lift(87,92);
+  }
+  if(country.includes('australia')){
+    if(region.includes('barossa')||region.includes('mclaren'))lift(88,94);
+    if(region.includes('eden valley')||region.includes('clare'))lift(87,92);
+    if(region.includes('margaret river')||region.includes('coonawarra'))lift(87,92);
+  }
+  if(country.includes('argentina')){if(region.includes('luján')||region.includes('lujan')||region.includes('uco'))lift(88,93);else lift(86,92);}
+  if(country.includes('chile'))lift(84,90);
+  if(country.includes('new zealand')){if(region.includes('central otago'))lift(88,93);else lift(86,92);}
+  if(country.includes('germany')){if(['mosel','rheingau','pfalz','rheinhessen'].some(r=>region.includes(r)))lift(88,94);else lift(85,91);}
+  if(country.includes('portugal')){if(region.includes('douro'))lift(87,93);if(vari.includes('port')||vari.includes('porto'))lift(88,94);}
+  if(country.includes('austria')){if(region.includes('wachau')||region.includes('kremstal')||region.includes('kamptal'))lift(88,94);else lift(85,91);}
+  if(type==='sparkling'){if(country.includes('france')&&region.includes('champagne')){const nv=(wine.vintage||'').toLowerCase();if(!nv||nv==='nv')lift(86,91);else lift(89,95);}else lift(82,87);}
+  if(type==='dessert'){if(region.includes('sauternes'))lift(91,97);if(vari.includes('trockenbeerenauslese'))lift(92,98);if(vari.includes('beerenauslese'))lift(90,96);if(vari.includes('tokaj')||region.includes('tokaj'))lift(90,96);if(vari.includes('eiswein'))lift(90,96);if(vari.includes('auslese'))lift(88,93);else lift(87,93);}
+  if(type==='fortified'){if(vari.includes('vintage port')||(vari.includes('port')&&!vari.includes('tawny')))lift(90,96);if(vari.includes('madeira'))lift(88,94);else lift(85,91);}
+  if(!isNaN(vintage)){
+    const fr=country.includes('france'),it=country.includes('italy'),us=country.includes('usa')||country.includes('united states');
+    const bdx=region.includes('bordeaux')||region.includes('médoc')||region.includes('medoc')||region.includes('pauillac')||region.includes('margaux');
+    const burg=region.includes('burgundy')||region.includes('bourgogne');
+    const pied=region.includes('barolo')||region.includes('barbaresco');
+    let bonus=0;
+    if(fr&&bdx&&[2000,2005,2009,2010,2015,2016,2018,2019,2020].includes(vintage))bonus=2;
+    if(fr&&bdx&&[2011,2013,2017].includes(vintage))bonus=-2;
+    if(fr&&burg&&[2005,2010,2012,2015,2019,2020].includes(vintage))bonus=2;
+    if(fr&&burg&&[2011,2013,2014].includes(vintage))bonus=-2;
+    if(us&&region.includes('napa')&&[2001,2002,2007,2012,2013,2014,2015,2016,2018,2019].includes(vintage))bonus=2;
+    if(it&&pied&&[2010,2013,2015,2016,2019].includes(vintage))bonus=2;
+    lo=Math.max(75,lo+bonus); hi=Math.min(100,hi+bonus);
+  }
+  const mid=Math.round((lo+hi)/2);
+  const label=mid>=95?'Exceptional':mid>=90?'Outstanding':mid>=85?'Very Good':mid>=80?'Good':'Above Average';
+  return {lo,hi,label,display:lo+'–'+hi+' est.',mid};
+}
+
+function applyScoreEstimateMobile(){
+  if(!wineDraft)return;
+  const est=estimateWineScore(wineDraft);
+  wineDraft.estScoreLo=est.lo; wineDraft.estScoreHi=est.hi;
+  wineDraft.estScoreLabel=est.label; wineDraft.estScoreDisplay=est.display;
+  renderWineSheetBody();
+  showSnack('Score estimated: '+est.display+' · '+est.label);
+}
+
 function applyPeakEstimateMobile(){
   if(!wineDraft)return;
   wineDraft.peakDrinking=estimatePeakDrinking(wineDraft);
@@ -1132,21 +1235,19 @@ function renderWineSheetBody(){
         +'<div class="field"><label>Tasting Notes After Drinking</label><textarea oninput="wineDraft.consumedNotes=this.value" placeholder="How did it actually taste? Did it live up to expectations?">'+esc(w.consumedNotes||'')+'</textarea></div>'
       +'</div>'
       :'')
-    +(w.ctScore!=null
+    +(w.estScoreLo!=null
       ?'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:14px">'
-        +'<div style="text-align:center;min-width:54px">'
-          +'<div style="font-size:32px;font-weight:900;line-height:1;color:var(--accent)">'+Math.round(w.ctScore)+'</div>'
-          +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-top:2px">CT Score</div>'
+        +'<div style="text-align:center;min-width:64px">'
+          +'<div style="font-size:20px;font-weight:900;line-height:1;color:var(--accent)">'+w.estScoreDisplay+'</div>'
+          +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-top:2px">Est. Score</div>'
         +'</div>'
         +'<div style="flex:1;font-size:12px;color:var(--ink2);line-height:1.6">'
-          +'<strong style="color:var(--ink)">CellarTracker Community</strong><br>'
-          +(w.ctNumRatings?w.ctNumRatings.toLocaleString()+' ratings<br>':'')
-          +(w.ctDrinkWindow?'Drink: '+w.ctDrinkWindow+'<br>':'')
-          +'<span style="font-size:10px;color:var(--ink3)">via cellartracker.com</span>'
+          +'<strong style="color:var(--ink)">'+w.estScoreLabel+'</strong><br>'
+          +'<span style="font-size:10px;color:var(--ink3)">Rule-based estimate</span>'
         +'</div>'
-        +'<button id="mobileWineRatingsBtn" type="button" onclick="lookupWineRatingsMobile()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;cursor:pointer">↻</button>'
+        +'<button type="button" onclick="applyScoreEstimateMobile()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;cursor:pointer">↻</button>'
       +'</div>'
-      :'<button id="mobileWineRatingsBtn" type="button" onclick="lookupWineRatingsMobile()" style="width:100%;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;color:var(--ink2);cursor:pointer;margin-bottom:10px;font-family:inherit;">🔍 Look Up Community Scores</button>')
+      :'<button type="button" onclick="applyScoreEstimateMobile()" style="width:100%;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;color:var(--ink2);cursor:pointer;margin-bottom:10px;font-family:inherit;">✨ Estimate Score</button>')
     +(w.id&&wineById(w.id)?'<button class="btn btn-danger btn-full" onclick="deleteWine(\''+w.id+'\')">Delete Wine</button>':'');
 }
 
