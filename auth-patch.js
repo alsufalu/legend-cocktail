@@ -55,8 +55,8 @@
     if (overlay) {
       overlay.innerHTML = `
         <div class="loginBox">
-          <div class="loginLogo">L</div>
-          <h2>Legend Bartending</h2>
+          <div class="loginLogo">🍸</div>
+          <h2>Shaker &amp; Cellar</h2>
           <p>Cocktail Cost &amp; Menu Builder</p>
           <div class="login-tabs">
             <button class="login-tab active" id="tabSignIn" onclick="patchSwitchTab('signin')">Sign In</button>
@@ -68,6 +68,9 @@
             <input type="password" id="authConfirm" placeholder="Confirm password" onkeydown="if(event.key==='Enter')patchSubmitAuth()"/>
           </div>
           <button class="loginBtn" id="authSubmitBtn" onclick="patchSubmitAuth()">Sign In</button>
+          <div id="deskForgotPwWrap" style="text-align:center;margin-top:10px">
+            <button type="button" onclick="sendPasswordReset()" style="background:none;border:none;color:#8492a6;font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">Forgot password?</button>
+          </div>
           <div class="loginError" id="loginError"></div>
         </div>
       `;
@@ -153,6 +156,24 @@
     document.getElementById('authConfirmWrap').style.display = mode === 'register' ? 'block' : 'none';
     document.getElementById('authSubmitBtn').textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
     document.getElementById('loginError').textContent = '';
+  };
+
+  window.sendPasswordReset = async function() {
+    const email = (document.getElementById('authEmail')||{}).value?.trim();
+    const err = document.getElementById('loginError');
+    if (!email) {
+      if(err){err.style.color='#dc2626';err.textContent='Enter your email address above first.';}
+      return;
+    }
+    const btn = document.getElementById('authSubmitBtn');
+    if(btn)btn.disabled=true;
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    if(btn)btn.disabled=false;
+    if (error) {
+      if(err){err.style.color='#dc2626';err.textContent=error.message;}
+    } else {
+      if(err){err.style.color='#16a34a';err.textContent='Password reset email sent! Check your inbox.';}
+    }
   };
 
   window.patchSubmitAuth = async function() {

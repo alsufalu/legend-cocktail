@@ -232,13 +232,21 @@
     .saved-menu-card.active { border-color: var(--blue); background: #eef5ff; }
     .saved-menu-card .smc-name { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1; }
     .saved-menu-card .smc-meta { font-size: 11px; color: var(--ink3); }
+
+    /* ===== PHOTO UPLOAD ===== */
+    .cocktail-photo { width: 100%; max-height: 260px; object-fit: cover; border-radius: 12px; margin-bottom: 14px; display: block; }
+    .photo-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .photo-upload-btn { padding: 14px 10px; border: 2px dashed var(--border); border-radius: 12px; background: var(--surface2); color: var(--ink2); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: center; }
+    .photo-upload-btn:active { background: var(--surface); }
+    .photo-remove-btn { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: none; color: var(--red, #dc2626); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; margin-top: 4px; }
+    .photo-uploading { text-align: center; padding: 30px; color: var(--ink3); font-size: 13px; }
   </style>
 </head>
 <body>
 
 <!-- LOGIN -->
 <div id="loginOverlay">
-  <div class="login-logo">L</div>
+  <div class="login-logo">🍸</div>
   <div class="login-title">Shaker &amp; Cellar</div>
   <div class="login-sub">Cocktail Cost & Menu Builder</div>
   <div class="login-box">
@@ -251,7 +259,7 @@
         <input type="text" id="authName" placeholder="Your full name" autocomplete="name"/>
       </div>
       <input type="email" id="authEmail" placeholder="Email address" autocomplete="email"/>
-      <div class="pw-wrap">
+      <div class="pw-wrap" id="authPasswordWrap">
         <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password"/>
         <button type="button" class="pw-toggle" id="pwEye1" onclick="togglePw('authPassword','pwEye1')">👁</button>
       </div>
@@ -263,6 +271,9 @@
       </div>
       <button class="login-btn" id="authSubmitBtn" onclick="submitAuth()">Sign In</button>
       <div class="login-error" id="loginError"></div>
+      <div id="forgotPwWrap" style="text-align:center;margin-top:12px">
+        <button type="button" onclick="sendPasswordReset()" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline">Forgot password?</button>
+      </div>
     </div>
   </div>
 </div>
@@ -318,8 +329,8 @@
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="topbar-left">
-      <div class="topbar-logo">L</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.9</span></div>
+      <div class="topbar-logo">🍸</div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.0</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -398,6 +409,12 @@
     </div>
   </div>
 </div>
+
+<!-- HIDDEN PHOTO INPUTS -->
+<input type="file" id="photoInputCamera"  accept="image/*" capture="environment" style="display:none" onchange="handleCocktailPhotoMobile(this.files[0])">
+<input type="file" id="photoInputLibrary" accept="image/*"                        style="display:none" onchange="handleCocktailPhotoMobile(this.files[0])">
+<input type="file" id="pourPhotoCamera"   accept="image/*" capture="environment" style="display:none" onchange="handlePourPhotoMobile(this.files[0])">
+<input type="file" id="pourPhotoLibrary"  accept="image/*"                        style="display:none" onchange="handlePourPhotoMobile(this.files[0])">
 
 <!-- POUR LOG SHEET -->
 <div class="sheet-overlay hidden" id="pourLogSheet">
@@ -1343,6 +1360,50 @@ function openIngSheet(id) {
   document.getElementById('ingSheet').classList.remove('hidden');
 }
 function closeIngSheet() { document.getElementById('ingSheet').classList.add('hidden'); ingDraft = null; }
+// ===== ABV LOOKUP =====
+function lookupAbv(name){
+  if(!name)return null;
+  const n=name.toLowerCase().trim();
+  const table=[
+    ['absinthe',68],['everclear',95],['overproof rum',75],['bacardi 151',75],
+    ['chartreuse verte',55],['green chartreuse',55],['yellow chartreuse',40],
+    ['sambuca',38],['jagermeister',35],['jägermeister',35],
+    ['bourbon',42],['rye whiskey',45],['scotch',40],['whiskey',40],['whisky',40],
+    ['brandy',40],['cognac',40],['hennessy',40],['courvoisier',40],['armagnac',40],
+    ['tanqueray',41],['hendricks',41],['bombay sapphire',47],['beefeater',40],['gin',40],
+    ['tequila',40],['patron',40],['espolon',40],['jose cuervo',38],['mezcal',40],
+    ['vodka',40],['absolut',40],['grey goose',40],['smirnoff',40],['ketel one',40],
+    ['rum',40],['bacardi',40],['captain morgan',35],['malibu',21],['coconut rum',21],
+    ['triple sec',40],['cointreau',40],['grand marnier',40],
+    ['kahlua',20],['coffee liqueur',20],['baileys',17],['irish cream',17],
+    ['chambord',16.5],['st. germain',20],['st germain',20],['elderflower',20],
+    ['campari',25],['aperol',11],['amaretto',24],['disaronno',28],
+    ['midori',20],['curacao',24],['peach schnapps',17],['schnapps',17],
+    ['frangelico',20],['drambuie',40],['pimms',25],['pimm',25],
+    ['amaro',30],['cynar',16.5],['fernet',39],['limoncello',30],['sloe gin',26],
+    ['lillet',17],['sweet vermouth',16],['dry vermouth',18],['vermouth',16],
+    ['port',20],['sherry',17],['madeira',18],['sake',15],['soju',25],
+    ['wine',13],['champagne',12],['prosecco',11],['cava',11.5],['moscato',7],
+    ['beer',5],['lager',4.5],['stout',5],['hard cider',5],
+    ['bitters',44],['angostura',44],['peychaud',35],
+    ['juice',0],['syrup',0],['grenadine',0],['soda',0],['water',0],
+    ['tonic',0],['ginger beer',0],['ginger ale',0],['cola',0],['lemonade',0],
+    ['cream',0],['coconut cream',0],['coconut water',0],['egg white',0],['egg',0],
+    ['simple syrup',0],['honey',0],['agave',0],['sugar',0]
+  ];
+  const sorted=[...table].sort((a,b)=>b[0].length-a[0].length);
+  for(const [key,abv] of sorted){if(n.includes(key))return abv;}
+  return null;
+}
+function lookupAbvMobile(){
+  if(!ingDraft)return;
+  const name=[ingDraft.name,ingDraft.brand,ingDraft.category,ingDraft.notes].filter(Boolean).join(' ');
+  const abv=lookupAbv(name);
+  if(abv===null){showSnack('ABV not found — try a more specific ingredient name');return;}
+  ingDraft.abv=String(abv);
+  renderIngSheetBody();
+  showSnack('ABV set to '+abv+'%');
+}
 function renderIngSheetBody() {
   const i = ingDraft;
   const allCats = getIngCats().filter(c=>c!=='All');
@@ -1356,10 +1417,8 @@ function renderIngSheetBody() {
     <div class="field"><label>Name *</label><input type="text" value="${esc(i.name)}" oninput="ingDraft.name=this.value" placeholder="e.g. Bombay Sapphire Gin"/></div>
     <div class="field"><label>Brand</label><input type="text" value="${esc(i.brand||'')}" oninput="ingDraft.brand=this.value" placeholder="e.g. Bombay Sapphire"/></div>
     <div class="field"><label>Category</label><select onchange="ingDraft.category=this.value">${catOpts}</select></div>
-    <div class="field-row">
-      <div class="field"><label>ABV %</label><input type="number" step="0.1" value="${esc(i.abv||'')}" oninput="ingDraft.abv=this.value" placeholder="e.g. 40"/></div>
-      <div class="field"><label>Purchase Unit</label><select onchange="ingDraft.unit=this.value">${unitOpts}</select></div>
-    </div>
+    <div class="field"><label>ABV %</label><div style="display:flex;gap:8px;align-items:center"><input type="number" step="0.1" value="${esc(i.abv||'')}" oninput="ingDraft.abv=this.value" placeholder="e.g. 40" style="flex:1"/><button type="button" onclick="lookupAbvMobile()" style="padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--blue);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">🔍 ABV</button></div></div>
+    <div class="field"><label>Purchase Unit</label><select onchange="ingDraft.unit=this.value">${unitOpts}</select></div>
     <div class="field"><label>Recipe Unit</label><select onchange="ingDraft.recipeUnit=this.value">${recOpts}</select></div>
     <div class="field-row">
       <div class="field"><label>Package Size</label><input type="number" step="0.01" value="${esc(i.packageSize||i.yieldQty||750)}" oninput="ingDraft.packageSize=Number(this.value);ingDraft.yieldQty=Number(this.value)"/></div>
@@ -1578,13 +1637,15 @@ function renderCocktailSheet() {
       </div>
     `;
   } else if (cocktailTab === 'photo') {
-    body += `
-      ${c.photo ? `<img src="${c.photo}" class="cocktail-photo" alt="Cocktail photo"/>` : ''}
-      <button class="photo-upload-btn" onclick="document.getElementById('photoInputLibrary').click()">
-        🖼️ ${c.photo ? 'Change Photo' : 'Add Photo'}
-      </button>
-      ${c.photo ? `<button class="btn btn-danger btn-full" onclick="cocktailDraft.photo='';renderCocktailSheet()">Remove Photo</button>` : ''}
-    `;
+    body += `<div class="cocktail-photo-area">
+      ${c.photo?`<img src="${esc(c.photo)}" class="cocktail-photo" alt="Cocktail photo"/>`:'<div style="width:100%;height:180px;border-radius:12px;background:var(--surface2);border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:14px;flex-direction:column;gap:8px;color:var(--ink3)"><span style="font-size:36px">📷</span><span style="font-size:13px">No photo yet</span></div>'}
+      <div class="photo-btn-row">
+        <button class="photo-upload-btn" onclick="document.getElementById('photoInputCamera').click()">📸<br><span style="font-size:12px">Take Photo</span></button>
+        <button class="photo-upload-btn" onclick="document.getElementById('photoInputLibrary').click()">🖼️<br><span style="font-size:12px">Choose from Gallery</span></button>
+      </div>
+      ${c.photo?`<button class="photo-remove-btn" onclick="cocktailDraft.photo='';renderCocktailSheet()">✕ Remove Photo</button>`:''}
+      ${!currentUser?'<p style="text-align:center;font-size:12px;color:var(--ink3);margin-top:12px">Sign in to upload photos to the cloud</p>':''}
+    </div>`;
   } else {
     // Recipe tab
     body += `<div style="display:flex;gap:8px;margin-bottom:14px;">
@@ -1622,7 +1683,7 @@ function renderCocktailSheet() {
       </div>`;
     }).join('');
 
-    body += lines + `<button class="btn btn-secondary btn-full" style="margin-top:4px;" onclick="cocktailDraft.recipe.push({ingredientId:'',qty:1,unit:'oz'});renderCocktailSheet()">+ Add Ingredient</button>`;
+    body += lines + `<button class="btn btn-secondary btn-full" style="margin-top:4px;" onmousedown="event.preventDefault();cocktailDraft.recipe.push({ingredientId:'',qty:1,unit:'oz'});renderCocktailSheet()">+ Add Ingredient</button>`;
   }
 
   document.getElementById('cocktailSheetBody').innerHTML = body;
@@ -3535,6 +3596,68 @@ function bsApply(barcode, p) {
 }
 
 
+// ===== PHOTO UPLOAD MODULE =====
+async function _resizeImage(file,maxW=1200,quality=0.85){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const r=Math.min(1,maxW/img.width);
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*r);c.height=Math.round(img.height*r);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b=>resolve(b),'image/jpeg',quality);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);resolve(file);};
+    img.src=url;
+  });
+}
+
+async function _uploadPhoto(file,path){
+  if(!currentUser)throw new Error('Not signed in');
+  const blob=await _resizeImage(file);
+  const {error}=await sbClient.storage.from('sc-photos').upload(path,blob,{contentType:'image/jpeg',upsert:true});
+  if(error)throw error;
+  return sbClient.storage.from('sc-photos').getPublicUrl(path).data.publicUrl;
+}
+
+async function handleCocktailPhotoMobile(file){
+  if(!file)return;
+  if(!currentUser){showSnack('Sign in to upload photos');return;}
+  // Show uploading state
+  const photoTab=document.querySelector('.cocktail-photo-area');
+  if(photoTab)photoTab.innerHTML='<div class="photo-uploading">⏳ Uploading photo…</div>';
+  try{
+    const path=`cocktails/${currentUser.id}/${cocktailDraft.id||'draft'}.jpg`;
+    const url=await _uploadPhoto(file,path);
+    cocktailDraft.photo=url;
+    showSnack('📸 Photo uploaded!');
+  }catch(e){
+    console.warn('Cocktail photo upload',e);
+    showSnack('Photo upload failed — check Supabase Storage bucket "sc-photos" exists');
+  }
+  renderCocktailSheet();
+}
+
+async function handlePourPhotoMobile(file){
+  if(!file)return;
+  if(!currentUser){showSnack('Sign in to upload photos');return;}
+  const el=document.getElementById('pourPhotoPreview');
+  if(el)el.innerHTML='<div style="text-align:center;padding:12px;color:var(--ink3);font-size:13px">⏳ Uploading…</div>';
+  try{
+    const path=`pours/${currentUser.id}/${Date.now()}.jpg`;
+    const url=await _uploadPhoto(file,path);
+    _pourDraft.photoUrl=url;
+    showSnack('📸 Photo added!');
+  }catch(e){
+    console.warn('Pour photo upload',e);
+    showSnack('Photo upload failed');
+    _pourDraft.photoUrl='';
+  }
+  _renderPourFormMobile();
+}
+
 // ===== COMMUNITY MODULE (mobile) =====
 // Shared state with desktop module (same variable names)
 let commTab='feed';
@@ -3607,10 +3730,10 @@ function _showBadgeToast(badge){
 }
 
 // ---- POUR LOG (mobile bottom sheet) ----
-let _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true};
+let _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true,photoUrl:''};
 
 function openPourLogMobile(){
-  _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true};
+  _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true,photoUrl:''};
   document.getElementById('pourLogSheet').classList.remove('hidden');
   _renderPourFormMobile();
 }
@@ -3640,6 +3763,15 @@ function _renderPourFormMobile(){
       <label>Rating</label>
       <div style="display:flex;gap:6px;margin-top:4px">${stars}</div>
     </div>
+    <div class="field">
+      <label>Photo <span style="font-weight:400;color:var(--ink3)">(optional)</span></label>
+      <div id="pourPhotoPreview">${_pourDraft.photoUrl?`<img src="${esc(_pourDraft.photoUrl)}" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;margin-bottom:8px">`:''}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button type="button" onclick="document.getElementById('pourPhotoCamera').click()" style="padding:10px;border:1px dashed var(--border);border-radius:10px;background:var(--surface2);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">📸 Camera</button>
+        <button type="button" onclick="document.getElementById('pourPhotoLibrary').click()" style="padding:10px;border:1px dashed var(--border);border-radius:10px;background:var(--surface2);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">🖼️ Gallery</button>
+      </div>
+      ${_pourDraft.photoUrl?`<button type="button" onclick="_pourDraft.photoUrl='';_renderPourFormMobile()" style="width:100%;margin-top:6px;padding:8px;border:1px solid var(--border);border-radius:8px;background:none;color:var(--red,#dc2626);font-size:12px;font-family:inherit;cursor:pointer">✕ Remove Photo</button>`:''}
+    </div>
     <label style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:16px;padding:10px;background:var(--surface2);border-radius:8px">
       <input type="checkbox" ${_pourDraft.isPublic?'checked':''} onchange="_pourDraft.isPublic=this.checked" style="accent-color:#c8922a;width:18px;height:18px">
       Share with community
@@ -3652,13 +3784,13 @@ function _renderPourFormMobile(){
 async function submitPourLogMobile(){
   if(!_pourDraft.name.trim()){showSnack('Please enter what you\'re drinking.');return;}
   if(!Array.isArray(state.pourLogs))state.pourLogs=[];
-  const entry={id:'pour_'+Date.now(),type:_pourDraft.type,name:_pourDraft.name.trim(),note:_pourDraft.note.trim(),rating:_pourDraft.rating,venue:_pourDraft.venue.trim(),isPublic:_pourDraft.isPublic,ts:new Date().toISOString()};
+  const entry={id:'pour_'+Date.now(),type:_pourDraft.type,name:_pourDraft.name.trim(),note:_pourDraft.note.trim(),rating:_pourDraft.rating,venue:_pourDraft.venue.trim(),isPublic:_pourDraft.isPublic,photoUrl:_pourDraft.photoUrl||'',ts:new Date().toISOString()};
   state.pourLogs.unshift(entry);
   saveData();
   if(currentUser&&entry.isPublic){
     try{
       const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
-      await sbClient.from('sc_pour_logs').insert({user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true});
+      await sbClient.from('sc_pour_logs').insert({user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true,photo_url:entry.photoUrl||null});
       _commFeed=[];
     }catch(e){console.warn('Pour log sync',e);}
   }
@@ -3808,6 +3940,7 @@ function _mCommFeed(){
         ${item.venue?`<div style="font-size:11px;color:var(--ink3)">📍 ${esc(item.venue)}</div>`:''}
         ${stars?`<div style="color:#c8922a;font-size:16px;margin-top:4px">${stars}</div>`:''}
         ${item.note?`<div style="font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5;border-left:2px solid var(--border);padding-left:8px;font-style:italic">"${esc(item.note)}"</div>`:''}
+        ${item.photo_url?`<img src="${esc(item.photo_url)}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:8px">`:''}
       </div>`;
     }else{
       return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
@@ -3829,15 +3962,19 @@ function _mCommRecipes(){
   return _commRecipes.map(r=>{
     let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
     const ingCount=(parsed.recipe||[]).length;
-    return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-        <div><div style="font-size:15px;font-weight:700">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
-        <span style="font-size:10px;background:rgba(200,146,42,.1);color:#c8922a;padding:2px 8px;border-radius:99px;font-weight:700">${ingCount} ing.</span>
-      </div>
-      ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);margin-bottom:8px;line-height:1.5">${esc(parsed.notes.slice(0,80))}${parsed.notes.length>80?'…':''}</div>`:''}
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}</span>
-        <button onclick="saveCommunityRecipeMobile('${r.id}')" style="padding:6px 14px;background:#c8922a;border:none;border-radius:20px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Save to Bar</button>
+    const photoUrl=r.photo_url||parsed.photo||'';
+    return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px">
+      ${photoUrl?`<img src="${esc(photoUrl)}" style="width:100%;height:160px;object-fit:cover;display:block" onerror="this.style.display='none'">`:''}
+      <div style="padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div><div style="font-size:15px;font-weight:700">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
+          <span style="font-size:10px;background:rgba(200,146,42,.1);color:#c8922a;padding:2px 8px;border-radius:99px;font-weight:700">${ingCount} ing.</span>
+        </div>
+        ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);margin-bottom:8px;line-height:1.5">${esc(parsed.notes.slice(0,80))}${parsed.notes.length>80?'…':''}</div>`:''}
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}</span>
+          <button onclick="saveCommunityRecipeMobile('${r.id}')" style="padding:6px 14px;background:#c8922a;border:none;border-radius:20px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Save to Bar</button>
+        </div>
       </div>
     </div>`;
   }).join('');
