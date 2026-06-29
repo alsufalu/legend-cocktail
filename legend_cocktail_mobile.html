@@ -319,7 +319,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">L</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.8</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.9</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -346,7 +346,7 @@
     <button class="nav-btn" data-tab="shopping" onclick="setTab('shopping')"><span class="nav-icon">🛒</span><span class="nav-label">Shopping</span></button>
     <button class="nav-btn" data-tab="batching" onclick="setTab('batching')"><span class="nav-icon">🧪</span><span class="nav-label">Batch</span></button>
     <button class="nav-btn" data-tab="cellar" onclick="setTab('cellar')"><span class="nav-icon">🍷</span><span class="nav-label">Cellar</span></button>
-    <button class="nav-btn" data-tab="community" onclick="setTab('community')"><span class="nav-icon">👥</span><span class="nav-label">Community</span></button>
+    <button class="nav-btn" data-tab="community" onclick="setTab('community');_feedLoaded=false;_recipesLoaded=false;_winesLoaded=false;"><span class="nav-icon">👥</span><span class="nav-label">Community</span></button>
     <button class="nav-btn" data-tab="settings" onclick="setTab('settings')"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></button>
   </div>
 </div>
@@ -3682,7 +3682,7 @@ async function toggleRecipePublicMobile(){
       }else{
         await sbClient.from('sc_public_recipes').delete().eq('id',`${currentUser.id}_${cocktailId}`);
       }
-      _commRecipes=[];
+      _commRecipes=[];_recipesLoaded=false;
     }catch(e){console.warn('Recipe publish mobile',e);}
   }
   checkNewBadges();
@@ -3702,7 +3702,7 @@ async function shareWineReviewCommMobile(){
     const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
     try{
       await sbClient.from('sc_wine_reviews').upsert({id:`${currentUser.id}_${wineDraft.id}`,user_id:currentUser.id,display_name:dn,wine_name:wineDraft.name,producer:wineDraft.producer||'',vintage:wineDraft.vintage||'',varietal:wineDraft.varietal||'',region:wineDraft.region||'',country:wineDraft.country||'',personal_score:wineDraft.personalRating?Number(wineDraft.personalRating):null,est_score_display:wineDraft.estScoreDisplay||null,tasting_notes:wineDraft.tastingNotes||''},{onConflict:'id'});
-      _commWines=[];
+      _commWines=[];_winesLoaded=false;
     }catch(e){console.warn('Wine review mobile',e);}
   }
   checkNewBadges();
