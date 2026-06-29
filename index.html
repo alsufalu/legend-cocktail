@@ -5707,7 +5707,7 @@ function _commRenderWines(){
   if(_commWines.length===0)return`<div style="text-align:center;padding:50px 20px"><div style="font-size:40px;margin-bottom:12px">🍷</div><p style="color:var(--ink3)">No wine reviews yet.<br>Open a wine in your cellar and click "Share Review"!</p><button onclick="_winesLoaded=false;_commWines=[];commLoadWines()" style="margin-top:14px;padding:6px 18px;background:none;border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Retry</button></div>`;
   return`<div style="display:flex;flex-direction:column;gap:10px">
     ${_commWines.map(w=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;gap:14px">
-      <div style="font-size:32px;line-height:1">${_flagEmoji(w.country||'')}</div>
+      ${w.country?`<div style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--surface2);color:var(--ink3);border:1px solid var(--border);white-space:nowrap;align-self:flex-start;margin-top:2px">${esc(w.country)}</div>`:'<div style="font-size:22px">🍷</div>'}
       <div style="flex:1">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
           <div><div style="font-size:14px;font-weight:700">${esc(w.wine_name)}</div><div style="font-size:11px;color:var(--ink3);margin-top:1px">${[w.producer,w.vintage,w.varietal].filter(Boolean).map(esc).join(' · ')}</div></div>
