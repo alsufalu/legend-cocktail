@@ -867,7 +867,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">L</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.6</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.7</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -5395,7 +5395,8 @@ function bsApply(barcode, p) {
 
 // ===== COMMUNITY MODULE =====
 let commTab='feed';
-let _commFeed=[],_commRecipes=[],_commWines=[],_commLoading=false;
+let _commFeed=[],_commRecipes=[],_commWines=[];
+let _feedLoading=false,_recipesLoading=false,_winesLoading=false;
 
 const BADGES=[
   {id:'first_pour',  icon:'🍹',name:'First Pour',       desc:'Logged your first drink',         cat:'cocktails'},
@@ -5571,7 +5572,7 @@ async function saveCommunityRecipe(recipeId){
 // ---- DATA LOADING ----
 async function commLoadFeed(){
   if(!currentUser)return;
-  _commLoading=true;render();
+  _feedLoading=true;render();
   try{
     const {data:pours}=await sbClient.from('sc_pour_logs').select('*').eq('is_public',true).order('created_at',{ascending:false}).limit(25);
     const {data:recipes}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(10);
@@ -5579,15 +5580,19 @@ async function commLoadFeed(){
     all.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
     _commFeed=all;
   }catch(e){console.warn('Feed load',e);_commFeed=[];}
-  _commLoading=false;render();
+  _feedLoading=false;render();
 }
 
 async function commLoadRecipes(){
-  try{const {data}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(60);_commRecipes=data||[];}catch(e){_commRecipes=[];}render();
+  _recipesLoading=true;render();
+  try{const {data}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(60);_commRecipes=data||[];}catch(e){_commRecipes=[];}
+  _recipesLoading=false;render();
 }
 
 async function commLoadWines(){
-  try{const {data}=await sbClient.from('sc_wine_reviews').select('*').order('created_at',{ascending:false}).limit(60);_commWines=data||[];}catch(e){_commWines=[];}render();
+  _winesLoading=true;render();
+  try{const {data}=await sbClient.from('sc_wine_reviews').select('*').order('created_at',{ascending:false}).limit(60);_commWines=data||[];}catch(e){_commWines=[];}
+  _winesLoading=false;render();
 }
 
 // ---- UTILS ----
@@ -5616,7 +5621,7 @@ function renderCommunity(){
   }
 
   const subNav=`<div style="display:flex;gap:2px;margin-bottom:20px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px">
-    ${[['feed','📰 Feed'],['recipes','🍹 Recipes'],['wines','🍷 Wines'],['profile','👤 My Profile']].map(([id,label])=>`<button onclick="commTab='${id}';_commFeed=[];_commRecipes=[];_commWines=[];render()" style="flex:1;padding:7px 6px;border:none;border-radius:7px;background:${commTab===id?'var(--surface)':'transparent'};box-shadow:${commTab===id?'0 1px 4px rgba(0,0,0,.1)':'none'};font-size:12px;font-weight:${commTab===id?'700':'500'};color:${commTab===id?'var(--ink)':'var(--ink3)'};cursor:pointer;font-family:inherit;transition:all .15s">${label}</button>`).join('')}
+    ${[['feed','📰 Feed'],['recipes','🍹 Recipes'],['wines','🍷 Wines'],['profile','👤 My Profile']].map(([id,label])=>`<button onclick="commTab='${id}';render()" style="flex:1;padding:7px 6px;border:none;border-radius:7px;background:${commTab===id?'var(--surface)':'transparent'};box-shadow:${commTab===id?'0 1px 4px rgba(0,0,0,.1)':'none'};font-size:12px;font-weight:${commTab===id?'700':'500'};color:${commTab===id?'var(--ink)':'var(--ink3)'};cursor:pointer;font-family:inherit;transition:all .15s">${label}</button>`).join('')}
   </div>`;
 
   let body='';
@@ -5630,13 +5635,13 @@ function renderCommunity(){
     `<div style="padding:4px 0 0">${subNav}${body}</div>`
   );
 
-  if(commTab==='feed'&&_commFeed.length===0&&!_commLoading)commLoadFeed();
-  if(commTab==='recipes'&&_commRecipes.length===0&&!_commLoading)commLoadRecipes();
-  if(commTab==='wines'&&_commWines.length===0&&!_commLoading)commLoadWines();
+  if(commTab==='feed'&&_commFeed.length===0&&!_feedLoading)commLoadFeed();
+  if(commTab==='recipes'&&_commRecipes.length===0&&!_recipesLoading)commLoadRecipes();
+  if(commTab==='wines'&&_commWines.length===0&&!_winesLoading)commLoadWines();
 }
 
 function _commRenderFeed(){
-  if(_commLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading community feed…</div>';
+  if(_feedLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading community feed…</div>';
   if(_commFeed.length===0)return`<div style="text-align:center;padding:50px 20px"><div style="font-size:40px;margin-bottom:12px">🌐</div><p style="color:var(--ink3)">No community activity yet.<br>Be the first — log a pour or share a recipe!</p><button onclick="openPourLog()" class="primary" style="margin-top:14px;font-size:13px">🍹 Log Your First Pour</button></div>`;
 
   return`<div style="display:flex;flex-direction:column;gap:10px">
@@ -5675,7 +5680,7 @@ function _commRenderFeed(){
 }
 
 function _commRenderRecipes(){
-  if(_commLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading recipes…</div>';
+  if(_recipesLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading recipes…</div>';
   if(_commRecipes.length===0)return`<div style="text-align:center;padding:50px 20px"><div style="font-size:40px;margin-bottom:12px">🍹</div><p style="color:var(--ink3)">No recipes shared yet.<br>Go to Recipes tab, open a cocktail, and check "Share in Community Library"!</p></div>`;
   return`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
     ${_commRecipes.map(r=>{
@@ -5697,7 +5702,7 @@ function _commRenderRecipes(){
 }
 
 function _commRenderWines(){
-  if(_commLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading wine reviews…</div>';
+  if(_winesLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading wine reviews…</div>';
   if(_commWines.length===0)return`<div style="text-align:center;padding:50px 20px"><div style="font-size:40px;margin-bottom:12px">🍷</div><p style="color:var(--ink3)">No wine reviews yet.<br>Open a wine in your cellar and click "Share Review"!</p></div>`;
   return`<div style="display:flex;flex-direction:column;gap:10px">
     ${_commWines.map(w=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;gap:14px">

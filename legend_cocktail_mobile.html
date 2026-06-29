@@ -319,7 +319,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">L</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.6</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v2.7</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -3538,7 +3538,8 @@ function bsApply(barcode, p) {
 // ===== COMMUNITY MODULE (mobile) =====
 // Shared state with desktop module (same variable names)
 let commTab='feed';
-let _commFeed=[],_commRecipes=[],_commWines=[],_commLoading=false;
+let _commFeed=[],_commRecipes=[],_commWines=[];
+let _feedLoading=false,_recipesLoading=false,_winesLoading=false;
 
 const BADGES=[
   {id:'first_pour',  icon:'🍹',name:'First Pour',       desc:'Logged your first drink',         cat:'cocktails'},
@@ -3727,7 +3728,7 @@ async function saveCommunityRecipeMobile(recipeId){
 // ---- DATA LOADING ----
 async function commLoadFeed(){
   if(!currentUser)return;
-  _commLoading=true;render();
+  _feedLoading=true;render();
   try{
     const {data:pours}=await sbClient.from('sc_pour_logs').select('*').eq('is_public',true).order('created_at',{ascending:false}).limit(25);
     const {data:recipes}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(10);
@@ -3735,13 +3736,17 @@ async function commLoadFeed(){
     all.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
     _commFeed=all;
   }catch(e){console.warn('Feed load',e);_commFeed=[];}
-  _commLoading=false;render();
+  _feedLoading=false;render();
 }
 async function commLoadRecipes(){
-  try{const {data}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(60);_commRecipes=data||[];}catch(e){_commRecipes=[];}render();
+  _recipesLoading=true;render();
+  try{const {data}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(60);_commRecipes=data||[];}catch(e){_commRecipes=[];}
+  _recipesLoading=false;render();
 }
 async function commLoadWines(){
-  try{const {data}=await sbClient.from('sc_wine_reviews').select('*').order('created_at',{ascending:false}).limit(60);_commWines=data||[];}catch(e){_commWines=[];}render();
+  _winesLoading=true;render();
+  try{const {data}=await sbClient.from('sc_wine_reviews').select('*').order('created_at',{ascending:false}).limit(60);_commWines=data||[];}catch(e){_commWines=[];}
+  _winesLoading=false;render();
 }
 
 function _timeAgo(iso){
@@ -3769,7 +3774,7 @@ function renderCommMobile(){
   }
 
   const subNav=`<div style="display:flex;gap:1px;background:var(--nav-bg);padding:8px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch">
-    ${[['feed','📰','Feed'],['recipes','🍹','Recipes'],['wines','🍷','Wines'],['profile','👤','Profile']].map(([id,ico,lbl])=>`<button onclick="commTab='${id}';_commFeed=[];_commRecipes=[];_commWines=[];render()" style="flex-shrink:0;padding:7px 14px;border:none;border-radius:20px;background:${commTab===id?'rgba(255,255,255,.2)':'transparent'};color:${commTab===id?'#fff':'rgba(255,255,255,.55)'};font-size:12px;font-weight:${commTab===id?'700':'500'};cursor:pointer;font-family:inherit;white-space:nowrap">${ico} ${lbl}</button>`).join('')}
+    ${[['feed','📰','Feed'],['recipes','🍹','Recipes'],['wines','🍷','Wines'],['profile','👤','Profile']].map(([id,ico,lbl])=>`<button onclick="commTab='${id}';render()" style="flex-shrink:0;padding:7px 14px;border:none;border-radius:20px;background:${commTab===id?'rgba(255,255,255,.2)':'transparent'};color:${commTab===id?'#fff':'rgba(255,255,255,.55)'};font-size:12px;font-weight:${commTab===id?'700':'500'};cursor:pointer;font-family:inherit;white-space:nowrap">${ico} ${lbl}</button>`).join('')}
     <button onclick="openPourLogMobile()" style="flex-shrink:0;margin-left:auto;padding:7px 14px;border:none;border-radius:20px;background:#c8922a;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">+ Log Pour</button>
   </div>`;
 
@@ -3781,13 +3786,13 @@ function renderCommMobile(){
 
   el.innerHTML=`<div style="padding-bottom:80px">${subNav}<div style="padding:14px 12px">${body}</div></div>`;
 
-  if(commTab==='feed'&&_commFeed.length===0&&!_commLoading)commLoadFeed();
-  if(commTab==='recipes'&&_commRecipes.length===0&&!_commLoading)commLoadRecipes();
-  if(commTab==='wines'&&_commWines.length===0&&!_commLoading)commLoadWines();
+  if(commTab==='feed'&&_commFeed.length===0&&!_feedLoading)commLoadFeed();
+  if(commTab==='recipes'&&_commRecipes.length===0&&!_recipesLoading)commLoadRecipes();
+  if(commTab==='wines'&&_commWines.length===0&&!_winesLoading)commLoadWines();
 }
 
 function _mCommFeed(){
-  if(_commLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading feed…</div>';
+  if(_feedLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading feed…</div>';
   if(_commFeed.length===0)return`<div style="text-align:center;padding:40px 16px"><div style="font-size:40px;margin-bottom:10px">🌐</div><p style="color:var(--ink3);margin-bottom:14px">No activity yet — be the first!</p><button onclick="openPourLogMobile()" class="btn btn-amber" style="width:auto">🍹 Log a Pour</button></div>`;
   return _commFeed.map(item=>{
     if(item._kind==='pour'){
@@ -3818,7 +3823,7 @@ function _mCommFeed(){
 }
 
 function _mCommRecipes(){
-  if(_commLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading recipes…</div>';
+  if(_recipesLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading recipes…</div>';
   if(_commRecipes.length===0)return`<div style="text-align:center;padding:40px 16px"><div style="font-size:40px;margin-bottom:10px">🍹</div><p style="color:var(--ink3)">No recipes shared yet.<br>Open a cocktail and enable "Share in Community Library"!</p></div>`;
   return _commRecipes.map(r=>{
     let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
@@ -3838,7 +3843,7 @@ function _mCommRecipes(){
 }
 
 function _mCommWines(){
-  if(_commLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading wine reviews…</div>';
+  if(_winesLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading wine reviews…</div>';
   if(_commWines.length===0)return`<div style="text-align:center;padding:40px 16px"><div style="font-size:40px;margin-bottom:10px">🍷</div><p style="color:var(--ink3)">No wine reviews yet.<br>Open a wine in your cellar and tap "Share Review to Community"!</p></div>`;
   return _commWines.map(w=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;gap:12px">
     <div style="font-size:28px;line-height:1;flex-shrink:0">${_flagEmoji(w.country||'')}</div>
