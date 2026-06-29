@@ -867,7 +867,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">L</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.5</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.6</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -899,6 +899,8 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <button class="tab" data-tab="cellar" onclick="setTab('cellar')"><span class="tab-icon">🍷</span> Wine Cellar</button>
     <div class="sidebar-section-title">Production</div>
     <button class="tab" data-tab="batching" onclick="setTab('batching')"><span class="tab-icon">🧪</span> Batching</button>
+    <div class="sidebar-section-title">Community</div>
+    <button class="tab" data-tab="community" onclick="setTab('community')"><span class="tab-icon">👥</span> Community</button>
     <div class="sidebar-section-title">System</div>
     <button class="tab" data-tab="utilities" onclick="setTab('utilities')"><span class="tab-icon">🔧</span> Utilities</button>
     <button class="tab" data-tab="settings" onclick="setTab('settings')"><span class="tab-icon">⚙️</span> Settings</button>
@@ -1190,7 +1192,7 @@ function deleteIngredient(id){
   saveData();
   render();
 }
-function addCocktail(){const id='cocktail-'+Date.now();state.cocktails.push({id,name:'New Cocktail',category:'Signature Cocktail',notes:'',glass:'',served:'',build:'',garnish:'',specialInstructions:'',recipe:[]});state.selectedCocktailId=id;saveData();setTab('recipes')}
+function addCocktail(){const id='cocktail-'+Date.now();state.cocktails.push({id,name:'New Cocktail',category:'Signature Cocktail',notes:'',glass:'',served:'',build:'',garnish:'',specialInstructions:'',recipe:[]});state.selectedCocktailId=id;saveData();checkNewBadges();setTab('recipes')}
 function updateCocktail(field,value){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId);if(!c)return;c[field]=value;saveData();render()}
 function deleteCocktail(id){if(confirm('Delete this cocktail?')){state.cocktails=state.cocktails.filter(c=>c.id!==id);state.menu=state.menu.filter(m=>m.cocktailId!==id);state.selectedCocktailId=state.cocktails[0]?.id||'';saveData();render()}}
 function duplicateCocktail(id){
@@ -1366,6 +1368,7 @@ function render(){
   if(state.tab==='settings')renderSettings();
   if(state.tab==='utilities')renderUtilities();
   if(state.tab==='batching')renderBatching();
+  if(state.tab==='community')renderCommunity();
   // Restore focus and cursor position
   if(_fid){const el=document.getElementById(_fid);if(el){el.focus();if(_fss!==null&&el.setSelectionRange){try{el.setSelectionRange(_fss,_fse);}catch(e){}}}}
 }
@@ -2118,6 +2121,15 @@ function renderRecipes(q){
               <span class="cLabel narrow">Date</span>
               <input class="input" placeholder="MM/DD/YYYY" value="${esc(c.dateCreated||'')}" oninput="dateMaskInput(this)" onchange="updateCocktail('dateCreated',this.value)" style="flex:0.5">
             </div>
+            <div class="compactRow" style="background:${c.isPublic?'rgba(200,146,42,.06)':'transparent'};border-radius:6px;padding:4px 6px">
+              <span class="cLabel">Community</span>
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1">
+                <input type="checkbox" ${c.isPublic?'checked':''} onchange="toggleRecipePublic('${c.id}')" style="accent-color:var(--amber);width:14px;height:14px">
+                <span style="font-size:12px;font-weight:500">Share in Community Library</span>
+              </label>
+              ${c.isPublic?`<span style="font-size:10px;background:rgba(200,146,42,.15);color:var(--amber);padding:2px 10px;border-radius:99px;font-weight:700;white-space:nowrap">🌐 Public</span>`:''}
+              ${c.savedFromCommunity?`<span style="font-size:10px;color:var(--ink3);margin-left:4px">Saved from ${esc(c.savedFromUser||'community')}</span>`:''}
+            </div>
           </div>
         </div>
         <div class="recipeHeader"><div>Ingredient</div><div>Qty</div><div>Unit</div><div>Cost</div><div></div></div>
@@ -2421,7 +2433,7 @@ function wineById(id){return wineList().find(w=>w.id===id);}
 function wineTypeBadge(type){const c=WINE_TYPE_COLOR[type]||'#374151';const b=WINE_TYPE_BG[type]||'#f3f4f6';const l=WINE_TYPE_LABELS[type]||type||'Unknown';return '<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;color:'+c+';background:'+b+'">'+l+'</span>';}
 function wineStatusBadge(s){if(s==='consumed')return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#f3f4f6;color:#6b7280">Consumed</span>';if(s==='gifted')return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#f0fdf4;color:#16a34a">Gifted</span>';if(s==='sold')return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#fffbeb;color:#d97706">Sold</span>';return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#dbeafe;color:#1d4ed8">In Cellar</span>';}
 function newWine(){return {id:'wine_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),name:'',producer:'',vintage:'',varietal:'',wineType:'red',country:'',region:'',appellation:'',bottleSize:'750ml',quantity:1,purchasePrice:0,currentValue:0,purchaseDate:'',deliveryDate:'',vendor:'',tastingNotes:'',pairingNotes:'',peakDrinking:'',personalRating:'',status:'in_cellar',storageLocationId:'',bin:'',notes:'',consumedDate:'',consumedRating:'',consumedNotes:'',occasion:'',sharedWith:''};}
-function addWine(){if(!Array.isArray(state.wines))state.wines=[];const w=newWine();state.wines.unshift(w);selectedWineId=w.id;saveData();render();}
+function addWine(){if(!Array.isArray(state.wines))state.wines=[];const w=newWine();state.wines.unshift(w);selectedWineId=w.id;saveData();checkNewBadges();render();}
 function deleteWine(id){if(!confirm('Delete this wine from your cellar?'))return;state.wines=(state.wines||[]).filter(w=>w.id!==id);if(selectedWineId===id)selectedWineId='';saveData();render();}
 function updateWine(id,field,value){const w=wineById(id);if(!w)return;w[field]=value;saveData();if(field==='storageLocationId'||field==='bin'||field==='status')render();}
 function wineSetStorageLoc(id,val){const w=wineById(id);if(!w)return;if(val==='__new__'){const locId=promptAddStorageLoc();if(!locId){render();return;}w.storageLocationId=locId;w.bin='';}else{w.storageLocationId=val;w.bin='';}saveData();render();}
@@ -2978,6 +2990,9 @@ function renderCellar(){
         :'')
       +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
         +'<button class="secondary" onclick="applyScoreEstimate(\''+sid+'\')" style="font-size:12px">✨ Estimate Score</button>'
+        +(sel.reviewShared
+          ?'<button class="secondary" onclick="shareWineReviewComm(\''+sid+'\')" style="font-size:12px;background:rgba(200,146,42,.1);border-color:var(--amber);color:var(--amber)">🌐 Review Shared ↻</button>'
+          :'<button class="secondary" onclick="shareWineReviewComm(\''+sid+'\')" style="font-size:12px">🌐 Share Review</button>')
         +'<button class="delete" style="margin-left:auto" onclick="deleteWine(\''+sid+'\')">✕ Delete Wine</button>'
       +'</div>'
     +'</div>';
@@ -5377,8 +5392,371 @@ function bsApply(barcode, p) {
   }
 }
 
+
+// ===== COMMUNITY MODULE =====
+let commTab='feed';
+let _commFeed=[],_commRecipes=[],_commWines=[],_commLoading=false;
+
+const BADGES=[
+  {id:'first_pour',  icon:'🍹',name:'First Pour',       desc:'Logged your first drink',         cat:'cocktails'},
+  {id:'pours_10',    icon:'🥃',name:'10 Pour Club',     desc:'Logged 10 drinks',                cat:'cocktails'},
+  {id:'pours_50',    icon:'🏅',name:'Pour Master',      desc:'Logged 50 drinks',                cat:'cocktails'},
+  {id:'pours_100',   icon:'🏆',name:'Century Pour',     desc:'Logged 100 drinks',               cat:'cocktails'},
+  {id:'publisher',   icon:'📖',name:'Recipe Publisher', desc:'Shared a cocktail recipe',        cat:'cocktails'},
+  {id:'recipes_5',   icon:'👨‍🍳',name:'Cocktail Creator',desc:'Shared 5 recipes with community', cat:'cocktails'},
+  {id:'first_wine',  icon:'🍷',name:'First Vintage',    desc:'Added your first wine to cellar', cat:'wine'},
+  {id:'wines_10',    icon:'🗃️', name:'Wine Collector',  desc:'Cellared 10 wines',               cat:'wine'},
+  {id:'wines_50',    icon:'🏛️', name:'Cellar Master',   desc:'Cellared 50 wines',               cat:'wine'},
+  {id:'reviewer',    icon:'✍️', name:'Wine Reviewer',   desc:'Shared a wine review',            cat:'wine'},
+  {id:'regions_5',   icon:'🌍',name:'World Traveler',   desc:'Wines from 5 different countries',cat:'wine'},
+  {id:'old_world',   icon:'🏰',name:'Old World',        desc:'10+ European wines cellared',     cat:'wine'},
+  {id:'new_world',   icon:'🌎',name:'New World',        desc:'10+ Americas/Pacific wines',      cat:'wine'},
+  {id:'social_5',    icon:'👥',name:'Social Drinker',   desc:'Following 5 members',             cat:'social'},
+  {id:'streak_7',    icon:'🔥',name:'Week Streak',      desc:'Logged drinks 7 days in a row',   cat:'cocktails'},
+];
+
+function getBadgesEarned(){
+  const e=new Set(state.badgesEarned||[]);
+  const logs=state.pourLogs||[], wines=state.wines||[], cocktails=state.cocktails||[], following=state.following||[];
+  if(logs.length>=1) e.add('first_pour');
+  if(logs.length>=10) e.add('pours_10');
+  if(logs.length>=50) e.add('pours_50');
+  if(logs.length>=100) e.add('pours_100');
+  if(wines.length>=1) e.add('first_wine');
+  if(wines.length>=10) e.add('wines_10');
+  if(wines.length>=50) e.add('wines_50');
+  const pubCount=cocktails.filter(c=>c.isPublic).length;
+  if(pubCount>=1) e.add('publisher');
+  if(pubCount>=5) e.add('recipes_5');
+  const countries=[...new Set(wines.map(w=>(w.country||'').toLowerCase()).filter(Boolean))];
+  if(countries.length>=5) e.add('regions_5');
+  const ow=['france','italy','spain','germany','portugal','austria'];
+  const nw=['usa','united states','australia','new zealand','argentina','chile'];
+  if(wines.filter(w=>ow.some(c=>(w.country||'').toLowerCase().includes(c))).length>=10) e.add('old_world');
+  if(wines.filter(w=>nw.some(c=>(w.country||'').toLowerCase().includes(c))).length>=10) e.add('new_world');
+  if(wines.some(w=>w.reviewShared)) e.add('reviewer');
+  if(following.length>=5) e.add('social_5');
+  if(logs.length>=7){
+    const days=new Set(logs.slice(0,14).map(l=>l.ts?.slice(0,10)));
+    const today=new Date(); let streak=0;
+    for(let i=0;i<7;i++){const d=new Date(today);d.setDate(d.getDate()-i);if(days.has(d.toISOString().slice(0,10)))streak++;else break;}
+    if(streak>=7) e.add('streak_7');
+  }
+  return e;
+}
+
+function checkNewBadges(){
+  if(typeof state==='undefined')return;
+  const prev=new Set(state.badgesEarned||[]);
+  const now=getBadgesEarned();
+  const newOnes=[...now].filter(b=>!prev.has(b));
+  if(newOnes.length){state.badgesEarned=[...now];saveData();newOnes.forEach(id=>{const def=BADGES.find(b=>b.id===id);if(def)_showBadgeToast(def);});}
+}
+
+function _showBadgeToast(badge){
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1c2437;color:#fff;padding:12px 20px;border-radius:12px;z-index:99999;font-family:inherit;box-shadow:0 4px 24px rgba(0,0,0,.45);display:flex;align-items:center;gap:12px;max-width:340px;animation:fadeSlideIn .3s ease';
+  el.innerHTML='<span style="font-size:30px">'+badge.icon+'</span><div><div style="font-weight:700;font-size:13px">🎉 Badge Unlocked!</div><div style="font-size:12px;opacity:.75;margin-top:2px">'+badge.name+' — '+badge.desc+'</div></div>';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),4500);
+}
+
+// ---- POUR LOG ----
+let _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true};
+
+function openPourLog(){
+  _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true};
+  document.getElementById('pourLogOverlay').style.display='flex';
+  _renderPourForm();
+}
+function closePourLog(){document.getElementById('pourLogOverlay').style.display='none';}
+
+function _renderPourForm(){
+  const el=document.getElementById('pourLogBody');if(!el)return;
+  const stars=[1,2,3,4,5].map(n=>`<span onclick="_pourDraft.rating=${n};_renderPourForm()" style="font-size:22px;cursor:pointer;color:${_pourDraft.rating>=n?'#c8922a':'#d1d5db'}">${_pourDraft.rating>=n?'★':'☆'}</span>`).join('');
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <button onclick="_pourDraft.type='cocktail';_renderPourForm()" style="padding:9px;border:2px solid ${_pourDraft.type==='cocktail'?'var(--amber)':'var(--border)'};border-radius:8px;background:${_pourDraft.type==='cocktail'?'rgba(200,146,42,.08)':'var(--surface)'};cursor:pointer;font-family:inherit;font-weight:700;font-size:13px">🍹 Cocktail</button>
+      <button onclick="_pourDraft.type='wine';_renderPourForm()" style="padding:9px;border:2px solid ${_pourDraft.type==='wine'?'var(--amber)':'var(--border)'};border-radius:8px;background:${_pourDraft.type==='wine'?'rgba(200,146,42,.08)':'var(--surface)'};cursor:pointer;font-family:inherit;font-weight:700;font-size:13px">🍷 Wine</button>
+    </div>
+    <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:4px">What are you drinking? *</label>
+    <input id="pourNameDsk" type="text" value="${esc(_pourDraft.name)}" oninput="_pourDraft.name=this.value" placeholder="${_pourDraft.type==='wine'?'e.g. Chateau Margaux 2018':'e.g. Smoky Mezcal Negroni'}" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+    <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:4px">Venue <span style="font-weight:400;color:var(--ink3)">(optional)</span></label>
+    <input type="text" value="${esc(_pourDraft.venue)}" oninput="_pourDraft.venue=this.value" placeholder="e.g. The Continental, Home Bar" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+    <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:4px">Tasting Notes <span style="font-weight:400;color:var(--ink3)">(optional)</span></label>
+    <textarea oninput="_pourDraft.note=this.value" placeholder="How does it taste? Any observations?" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;height:68px;resize:vertical;margin-bottom:10px;box-sizing:border-box">${esc(_pourDraft.note)}</textarea>
+    <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:6px">Rating</label>
+    <div style="margin-bottom:12px;display:flex;gap:4px">${stars}</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:16px">
+      <input type="checkbox" ${_pourDraft.isPublic?'checked':''} onchange="_pourDraft.isPublic=this.checked" style="accent-color:var(--amber);width:15px;height:15px">
+      Share with community
+    </label>
+    <button onclick="submitPourLog()" style="width:100%;padding:12px;background:var(--amber);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Log This Pour</button>
+  `;
+  setTimeout(()=>document.getElementById('pourNameDsk')?.focus(),80);
+}
+
+async function submitPourLog(){
+  if(!_pourDraft.name.trim()){alert('Please enter what you\'re drinking.');return;}
+  if(!Array.isArray(state.pourLogs))state.pourLogs=[];
+  const entry={id:'pour_'+Date.now(),type:_pourDraft.type,name:_pourDraft.name.trim(),note:_pourDraft.note.trim(),rating:_pourDraft.rating,venue:_pourDraft.venue.trim(),isPublic:_pourDraft.isPublic,ts:new Date().toISOString()};
+  state.pourLogs.unshift(entry);
+  saveData();
+  if(currentUser&&entry.isPublic){
+    try{
+      const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
+      await sbClient.from('sc_pour_logs').insert({user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true});
+      _commFeed=[];
+    }catch(e){console.warn('Pour log sync',e);}
+  }
+  closePourLog();
+  checkNewBadges();
+  if(typeof showSnack==='function')showSnack('🍹 Logged: '+entry.name);
+  if(state.tab==='community')render();
+}
+
+// ---- RECIPE SHARING ----
+async function toggleRecipePublic(cocktailId){
+  const c=state.cocktails.find(x=>x.id===cocktailId);if(!c)return;
+  c.isPublic=!c.isPublic;
+  saveData();
+  if(currentUser){
+    const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
+    try{
+      if(c.isPublic){
+        await sbClient.from('sc_public_recipes').upsert({id:`${currentUser.id}_${cocktailId}`,user_id:currentUser.id,display_name:dn,cocktail_id:cocktailId,cocktail_data:c,name:c.name,category:c.category||'',glass:c.glass||'',garnish:c.garnish||''},{onConflict:'id'});
+      }else{
+        await sbClient.from('sc_public_recipes').delete().eq('id',`${currentUser.id}_${cocktailId}`);
+      }
+      _commRecipes=[];
+    }catch(e){console.warn('Recipe publish',e);}
+  }
+  checkNewBadges();
+  render();
+}
+
+// ---- WINE REVIEW SHARING ----
+async function shareWineReviewComm(wineId){
+  const w=wineById(wineId);if(!w)return;
+  if(!w.tastingNotes&&!w.personalRating&&!w.estScoreDisplay){alert('Add a personal rating, tasting notes, or run the score estimator first.');return;}
+  w.reviewShared=true;saveData();
+  if(currentUser){
+    const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
+    try{
+      await sbClient.from('sc_wine_reviews').upsert({id:`${currentUser.id}_${wineId}`,user_id:currentUser.id,display_name:dn,wine_name:w.name,producer:w.producer||'',vintage:w.vintage||'',varietal:w.varietal||'',region:w.region||'',country:w.country||'',personal_score:w.personalRating?Number(w.personalRating):null,est_score_display:w.estScoreDisplay||null,tasting_notes:w.tastingNotes||''},{onConflict:'id'});
+      _commWines=[];
+    }catch(e){console.warn('Wine review share',e);}
+  }
+  checkNewBadges();
+  if(typeof showSnack==='function')showSnack('🍷 Wine review shared to community!');
+  render();
+}
+
+// ---- SAVE COMMUNITY RECIPE ----
+async function saveCommunityRecipe(recipeId){
+  if(!currentUser){alert('Sign in to save recipes.');return;}
+  const r=_commRecipes.find(x=>x.id===recipeId);if(!r)return;
+  try{
+    const parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});
+    const newId='cocktail-comm-'+Date.now();
+    const nc={...parsed,id:newId,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name};
+    if(!Array.isArray(state.cocktails))state.cocktails=[];
+    state.cocktails.push(nc);
+    saveData();
+    if(typeof showSnack==='function')showSnack('Recipe saved to your bar!');
+    setTab('recipes');state.selectedCocktailId=newId;render();
+  }catch(e){console.warn('Save recipe',e);}
+}
+
+// ---- DATA LOADING ----
+async function commLoadFeed(){
+  if(!currentUser)return;
+  _commLoading=true;render();
+  try{
+    const {data:pours}=await sbClient.from('sc_pour_logs').select('*').eq('is_public',true).order('created_at',{ascending:false}).limit(25);
+    const {data:recipes}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(10);
+    const all=[...(pours||[]).map(p=>({...p,_kind:'pour'})),...(recipes||[]).map(r=>({...r,_kind:'recipe'}))];
+    all.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+    _commFeed=all;
+  }catch(e){console.warn('Feed load',e);_commFeed=[];}
+  _commLoading=false;render();
+}
+
+async function commLoadRecipes(){
+  try{const {data}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(60);_commRecipes=data||[];}catch(e){_commRecipes=[];}render();
+}
+
+async function commLoadWines(){
+  try{const {data}=await sbClient.from('sc_wine_reviews').select('*').order('created_at',{ascending:false}).limit(60);_commWines=data||[];}catch(e){_commWines=[];}render();
+}
+
+// ---- UTILS ----
+function _timeAgo(iso){
+  if(!iso)return'';
+  const sec=Math.floor((Date.now()-new Date(iso))/1000);
+  if(sec<60)return'just now';if(sec<3600)return Math.floor(sec/60)+'m ago';
+  if(sec<86400)return Math.floor(sec/3600)+'h ago';return Math.floor(sec/86400)+'d ago';
+}
+function _flagEmoji(c=''){const m={'france':'🇫🇷','italy':'🇮🇹','spain':'🇪🇸','usa':'🇺🇸','united states':'🇺🇸','australia':'🇦🇺','new zealand':'🇳🇿','argentina':'🇦🇷','chile':'🇨🇱','germany':'🇩🇪','portugal':'🇵🇹','austria':'🇦🇹','south africa':'🇿🇦','greece':'🇬🇷','hungary':'🇭🇺'};return m[c.toLowerCase()]||'🌍';}
+
+// ---- EDIT PROFILE ----
+function commEditProfile(){
+  const dn=state.profile?.displayName||'';
+  const name=prompt('Display name (shown to community):',dn);if(name===null)return;
+  if(typeof state.profile!=='object'||Array.isArray(state.profile))state.profile={};
+  state.profile.displayName=(name.trim()||currentUser?.email?.split('@')[0]||'Member');
+  saveData();render();
+}
+
+// ---- RENDER ----
+function renderCommunity(){
+  if(!currentUser){
+    panel('Community','',`<div style="text-align:center;padding:80px 20px"><div style="font-size:56px;margin-bottom:16px">👥</div><h3 style="margin-bottom:8px;font-size:18px">Join the Shaker &amp; Cellar Community</h3><p style="color:var(--ink3);max-width:380px;margin:0 auto;line-height:1.6">Sign in to share recipes, log your pours, discover what others are drinking, and earn badges.</p></div>`);
+    return;
+  }
+
+  const subNav=`<div style="display:flex;gap:2px;margin-bottom:20px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px">
+    ${[['feed','📰 Feed'],['recipes','🍹 Recipes'],['wines','🍷 Wines'],['profile','👤 My Profile']].map(([id,label])=>`<button onclick="commTab='${id}';_commFeed=[];_commRecipes=[];_commWines=[];render()" style="flex:1;padding:7px 6px;border:none;border-radius:7px;background:${commTab===id?'var(--surface)':'transparent'};box-shadow:${commTab===id?'0 1px 4px rgba(0,0,0,.1)':'none'};font-size:12px;font-weight:${commTab===id?'700':'500'};color:${commTab===id?'var(--ink)':'var(--ink3)'};cursor:pointer;font-family:inherit;transition:all .15s">${label}</button>`).join('')}
+  </div>`;
+
+  let body='';
+  if(commTab==='feed')body=_commRenderFeed();
+  else if(commTab==='recipes')body=_commRenderRecipes();
+  else if(commTab==='wines')body=_commRenderWines();
+  else body=_commRenderProfile();
+
+  panel('Community',
+    `<button onclick="openPourLog()" class="primary" style="font-size:12px">🍹 Log a Pour</button>`,
+    `<div style="padding:4px 0 0">${subNav}${body}</div>`
+  );
+
+  if(commTab==='feed'&&_commFeed.length===0&&!_commLoading)commLoadFeed();
+  if(commTab==='recipes'&&_commRecipes.length===0&&!_commLoading)commLoadRecipes();
+  if(commTab==='wines'&&_commWines.length===0&&!_commLoading)commLoadWines();
+}
+
+function _commRenderFeed(){
+  if(_commLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading community feed…</div>';
+  if(_commFeed.length===0)return`<div style="text-align:center;padding:50px 20px"><div style="font-size:40px;margin-bottom:12px">🌐</div><p style="color:var(--ink3)">No community activity yet.<br>Be the first — log a pour or share a recipe!</p><button onclick="openPourLog()" class="primary" style="margin-top:14px;font-size:13px">🍹 Log Your First Pour</button></div>`;
+
+  return`<div style="display:flex;flex-direction:column;gap:10px">
+    ${_commFeed.map(item=>{
+      if(item._kind==='pour'){
+        const stars=item.rating?'★'.repeat(item.rating)+'☆'.repeat(5-item.rating):'';
+        return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+            <div style="display:flex;align-items:center;gap:9px">
+              <div style="width:34px;height:34px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;flex-shrink:0">${(item.display_name||'?')[0].toUpperCase()}</div>
+              <div><div style="font-weight:700;font-size:13px">${esc(item.display_name||'Member')}</div><div style="font-size:11px;color:var(--ink3)">${_timeAgo(item.created_at)}</div></div>
+            </div>
+            <span style="font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px;background:${item.item_type==='wine'?'rgba(100,40,120,.1)':'rgba(200,146,42,.1)'};color:${item.item_type==='wine'?'#7828a0':'var(--amber)'}">${item.item_type==='wine'?'🍷 Wine':'🍹 Cocktail'}</span>
+          </div>
+          <div style="font-size:14px;font-weight:700;margin:4px 0 2px">${esc(item.item_name)}</div>
+          ${item.venue?`<div style="font-size:11px;color:var(--ink3)">📍 ${esc(item.venue)}</div>`:''}
+          ${stars?`<div style="color:var(--amber);font-size:15px;margin-top:4px">${stars}</div>`:''}
+          ${item.note?`<div style="font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.6;font-style:italic;border-left:2px solid var(--border);padding-left:8px">"${esc(item.note)}"</div>`:''}
+        </div>`;
+      }else{
+        return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+              <div style="width:34px;height:34px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;flex-shrink:0">${(item.display_name||'?')[0].toUpperCase()}</div>
+              <div><div style="font-weight:700;font-size:13px">${esc(item.display_name||'Member')}</div><div style="font-size:11px;color:var(--ink3)">shared a recipe · ${_timeAgo(item.created_at)}</div></div>
+            </div>
+            <div style="font-size:15px;font-weight:700">🍹 ${esc(item.name)}</div>
+            ${item.category?`<div style="font-size:11px;color:var(--ink3);margin-top:2px">${esc(item.category)}${item.glass?' · '+esc(item.glass):''}</div>`:''}
+          </div>
+          <button onclick="saveCommunityRecipe('${item.id}')" class="secondary" style="font-size:12px;white-space:nowrap">Save Recipe</button>
+        </div>`;
+      }
+    }).join('')}
+    <div style="text-align:center;padding:8px"><button onclick="_commFeed=[];commLoadFeed()" style="padding:6px 18px;background:none;border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Refresh Feed</button></div>
+  </div>`;
+}
+
+function _commRenderRecipes(){
+  if(_commLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading recipes…</div>';
+  if(_commRecipes.length===0)return`<div style="text-align:center;padding:50px 20px"><div style="font-size:40px;margin-bottom:12px">🍹</div><p style="color:var(--ink3)">No recipes shared yet.<br>Go to Recipes tab, open a cocktail, and check "Share in Community Library"!</p></div>`;
+  return`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+    ${_commRecipes.map(r=>{
+      let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
+      const ingCount=(parsed.recipe||[]).length;
+      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="flex:1"><div style="font-size:15px;font-weight:700;margin-bottom:2px">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
+          <span style="font-size:10px;background:rgba(200,146,42,.1);color:var(--amber);padding:2px 8px;border-radius:99px;font-weight:700;white-space:nowrap">${ingCount} ing.</span>
+        </div>
+        ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);line-height:1.5">${esc(parsed.notes.slice(0,90))}${parsed.notes.length>90?'…':''}</div>`:''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;border-top:1px solid var(--surface2)">
+          <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}</span>
+          <button onclick="saveCommunityRecipe('${r.id}')" style="padding:5px 12px;background:var(--amber);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Save to Bar</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function _commRenderWines(){
+  if(_commLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading wine reviews…</div>';
+  if(_commWines.length===0)return`<div style="text-align:center;padding:50px 20px"><div style="font-size:40px;margin-bottom:12px">🍷</div><p style="color:var(--ink3)">No wine reviews yet.<br>Open a wine in your cellar and click "Share Review"!</p></div>`;
+  return`<div style="display:flex;flex-direction:column;gap:10px">
+    ${_commWines.map(w=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;gap:14px">
+      <div style="font-size:32px;line-height:1">${_flagEmoji(w.country||'')}</div>
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+          <div><div style="font-size:14px;font-weight:700">${esc(w.wine_name)}</div><div style="font-size:11px;color:var(--ink3);margin-top:1px">${[w.producer,w.vintage,w.varietal].filter(Boolean).map(esc).join(' · ')}</div></div>
+          ${(w.personal_score||w.est_score_display)?`<div style="text-align:center;min-width:46px"><div style="font-size:18px;font-weight:900;color:var(--amber)">${w.personal_score||w.est_score_display}</div><div style="font-size:9px;color:var(--ink3)">${w.personal_score?'rated':'est.'}</div></div>`:''}
+        </div>
+        ${w.tasting_notes?`<div style="font-size:12px;color:var(--ink2);line-height:1.5;font-style:italic;border-left:2px solid var(--border);padding-left:8px">"${esc(w.tasting_notes.slice(0,120))}${w.tasting_notes.length>120?'…':''}"</div>`:''}
+        <div style="font-size:11px;color:var(--ink3);margin-top:5px">by ${esc(w.display_name||'Member')} · ${_timeAgo(w.created_at)}</div>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function _commRenderProfile(){
+  const earned=getBadgesEarned();
+  const logs=state.pourLogs||[], wines=state.wines||[], pubs=(state.cocktails||[]).filter(c=>c.isPublic);
+  const displayName=state.profile?.displayName||currentUser?.email?.split('@')[0]||'Member';
+  const badgeGrid=BADGES.map(b=>{const has=earned.has(b.id);return`<div title="${b.name}: ${b.desc}" style="text-align:center;padding:10px 8px;border-radius:10px;background:${has?'var(--surface)':'var(--surface2)'};border:1px solid ${has?'var(--border)':'transparent'};opacity:${has?1:.35}"><div style="font-size:22px;margin-bottom:4px">${b.icon}</div><div style="font-size:10px;font-weight:700;color:var(--ink);line-height:1.3">${b.name}</div>${!has?'<div style="font-size:9px;color:var(--ink3);margin-top:1px">Locked</div>':''}</div>`;}).join('');
+  const recentPours=logs.slice(0,5).map(l=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--surface2)"><span style="font-size:18px">${l.type==='wine'?'🍷':'🍹'}</span><div style="flex:1"><div style="font-size:13px;font-weight:600">${esc(l.name)}</div>${l.venue?`<div style="font-size:11px;color:var(--ink3)">📍 ${esc(l.venue)}</div>`:''}</div>${l.rating?`<span style="color:var(--amber);font-size:12px">${'★'.repeat(l.rating)}</span>`:''}<span style="font-size:11px;color:var(--ink3)">${_timeAgo(l.ts)}</span></div>`).join('')||'<div style="color:var(--ink3);font-size:13px;padding:14px 0;text-align:center">No pours logged yet. Tap "Log a Pour" above to start!</div>';
+  return`<div style="display:grid;grid-template-columns:240px 1fr;gap:20px">
+    <div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;margin-bottom:14px">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:700;margin:0 auto 10px">${displayName[0].toUpperCase()}</div>
+        <div style="font-weight:700;font-size:16px;margin-bottom:2px">${esc(displayName)}</div>
+        <div style="font-size:11px;color:var(--ink3)">${esc(currentUser?.email||'')}</div>
+        <button onclick="commEditProfile()" class="secondary" style="margin-top:10px;font-size:11px;padding:5px 14px">Edit Profile</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        ${[['🍹',logs.length,'Pours'],['🍷',wines.length,'Wines'],['📖',pubs.length,'Shared'],['🏅',earned.size,'Badges']].map(([ico,n,lbl])=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;margin-bottom:2px">${ico}</div><div style="font-size:22px;font-weight:900;color:var(--amber)">${n}</div><div style="font-size:10px;color:var(--ink3)">${lbl}</div></div>`).join('')}
+      </div>
+    </div>
+    <div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">🏅 Badges (${earned.size}/${BADGES.length})</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px">${badgeGrid}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px">🕐 Recent Pours</div>
+        ${recentPours}
+      </div>
+    </div>
+  </div>`;
+}
 </script>
 <script src="auth-patch.js"></script>
+
+<!-- POUR LOG OVERLAY -->
+<div id="pourLogOverlay" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:18px;padding:24px 22px;width:min(95vw,440px);box-shadow:0 8px 48px rgba(0,0,0,.45);max-height:92vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:17px;font-weight:800;color:var(--ink)">🍹 Log a Pour</div>
+      <button onclick="closePourLog()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink3);line-height:1;padding:0">✕</button>
+    </div>
+    <div id="pourLogBody"></div>
+  </div>
+</div>
 
 <!-- BARCODE SCANNER OVERLAY -->
 <div id="barcodeScanOverlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
