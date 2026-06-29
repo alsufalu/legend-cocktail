@@ -3927,33 +3927,32 @@ function renderCommMobile(){
 function _mCommFeed(){
   if(_feedLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading feed…</div>';
   if(_commFeed.length===0)return`<div style="text-align:center;padding:40px 16px"><div style="font-size:40px;margin-bottom:10px">🌐</div><p style="color:var(--ink3);margin-bottom:14px">No activity yet — be the first!</p><button onclick="openPourLogMobile()" class="btn btn-amber" style="width:auto">🍹 Log a Pour</button></div>`;
-  return _commFeed.map(item=>{
+  const rows=_commFeed.map(item=>{
     if(item._kind==='pour'){
       const stars=item.rating?'★'.repeat(item.rating):'';
-      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <div style="width:32px;height:32px;border-radius:50%;background:#c8922a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;flex-shrink:0">${(item.display_name||'?')[0].toUpperCase()}</div>
-          <div style="flex:1"><div style="font-weight:700;font-size:13px">${esc(item.display_name||'Member')}</div><div style="font-size:11px;color:var(--ink3)">${_timeAgo(item.created_at)}</div></div>
-          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:${item.item_type==='wine'?'rgba(100,40,120,.1)':'rgba(200,146,42,.1)'};color:${item.item_type==='wine'?'#7828a0':'#c8922a'}">${item.item_type==='wine'?'🍷':'🍹'}</span>
+      const icon=item.item_type==='wine'?'🍷':'🍹';
+      const meta=[item.venue?'📍'+esc(item.venue):'',_timeAgo(item.created_at)].filter(Boolean).join(' · ');
+      return`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
+        <div style="width:28px;height:28px;border-radius:50%;background:#c8922a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px">${(item.display_name||'?')[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;line-height:1.4"><span style="font-weight:700">${esc(item.display_name||'Member')}</span> <span style="color:var(--ink3)">logged</span> ${icon} <span style="font-weight:600">${esc(item.item_name)}</span>${stars?` <span style="color:#c8922a">${stars}</span>`:''}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:1px">${meta}</div>
+          ${item.note?`<div style="font-size:11px;color:var(--ink2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic">"${esc(item.note)}"</div>`:''}
         </div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:2px">${esc(item.item_name)}</div>
-        ${item.venue?`<div style="font-size:11px;color:var(--ink3)">📍 ${esc(item.venue)}</div>`:''}
-        ${stars?`<div style="color:#c8922a;font-size:16px;margin-top:4px">${stars}</div>`:''}
-        ${item.note?`<div style="font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5;border-left:2px solid var(--border);padding-left:8px;font-style:italic">"${esc(item.note)}"</div>`:''}
-        ${item.photo_url?`<img src="${esc(item.photo_url)}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:8px">`:''}
       </div>`;
     }else{
-      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--nav-bg);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;flex-shrink:0">${(item.display_name||'?')[0].toUpperCase()}</div>
-          <div><div style="font-weight:700;font-size:13px">${esc(item.display_name||'Member')}</div><div style="font-size:11px;color:var(--ink3)">shared a recipe · ${_timeAgo(item.created_at)}</div></div>
+      return`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--nav-bg);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0">${(item.display_name||'?')[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:700">${esc(item.display_name||'Member')}</span> <span style="color:var(--ink3)">shared</span> 🍹 <span style="font-weight:600">${esc(item.name)}</span></div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:1px">${[item.category?esc(item.category):'',_timeAgo(item.created_at)].filter(Boolean).join(' · ')}</div>
         </div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:4px">🍹 ${esc(item.name)}</div>
-        ${item.category?`<div style="font-size:11px;color:var(--ink3)">${esc(item.category)}</div>`:''}
-        <button onclick="saveCommunityRecipeMobile('${item.id}')" class="btn btn-secondary" style="width:100%;margin-top:10px;font-size:13px">Save Recipe to My Bar</button>
+        <button onclick="saveCommunityRecipeMobile('${item.id}')" style="padding:4px 10px;background:none;border:1px solid var(--border);border-radius:20px;color:var(--ink3);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0">Save</button>
       </div>`;
     }
-  }).join('')+`<div style="text-align:center;margin-top:4px"><button onclick="_commFeed=[];_feedLoaded=false;commLoadFeed()" style="padding:8px 20px;background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Refresh</button></div>`;
+  }).join('');
+  return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">${rows}</div>
+    <div style="text-align:center;margin-top:8px"><button onclick="_commFeed=[];_feedLoaded=false;commLoadFeed()" style="padding:8px 20px;background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Refresh</button></div>`;
 }
 
 function _mCommRecipes(){
