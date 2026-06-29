@@ -833,7 +833,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
 <!-- LOGIN OVERLAY -->
 <div id="loginOverlay">
   <div class="loginBox">
-    <div class="loginLogo">L</div>
+    <div class="loginLogo">🍸</div>
     <h2>Shaker &amp; Cellar</h2>
     <p>Cocktail Cost &amp; Menu Builder</p>
     <div class="loginTabs">
@@ -845,7 +845,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
         <input type="text" id="deskAuthName" placeholder="Your full name" autocomplete="name"/>
       </div>
       <input type="email" id="deskAuthEmail" placeholder="Email address" autocomplete="email"/>
-      <div class="loginPwWrap">
+      <div class="loginPwWrap" id="deskPwWrap">
         <input type="password" id="deskAuthPassword" placeholder="Password" autocomplete="current-password"/>
         <button type="button" class="loginPwToggle" id="deskPwEye1" onclick="togglePw('deskAuthPassword','deskPwEye1')">👁</button>
       </div>
@@ -857,6 +857,9 @@ details[open] > summary .chevron { transform: rotate(180deg); }
       </div>
       <button class="loginBtn" id="deskAuthSubmitBtn" onclick="submitAuth()">Sign In</button>
       <div class="loginError" id="loginError"></div>
+      <div id="deskForgotPwWrap" style="text-align:center;margin-top:10px">
+        <button type="button" onclick="sendPasswordReset()" style="background:none;border:none;color:var(--ink3);font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">Forgot password?</button>
+      </div>
     </div>
   </div>
 </div>
@@ -864,10 +867,10 @@ details[open] > summary .chevron { transform: rotate(180deg); }
 <!-- TOP HEADER BAR -->
 <header class="topbar">
   <div class="topbar-brand">
-    <div class="topbar-logo">L</div>
+    <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v2.9</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.0</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1465,6 +1468,57 @@ function duplicateIngredient(id){
   render();
 }
 function cancelIngredientForm(){ingredientDraft=null;ingredientFormMode='list';render();}
+// ===== ABV LOOKUP =====
+function lookupAbv(name){
+  if(!name)return null;
+  const n=name.toLowerCase().trim();
+  const table=[
+    ['absinthe',68],['everclear',95],['overproof rum',75],['151',75],
+    ['chartreuse verte',55],['green chartreuse',55],['yellow chartreuse',40],
+    ['bacardi 151',75],['sambuca',38],['jagermeister',35],['jägermeister',35],
+    ['bourbon',42],['rye whiskey',45],['scotch',40],['whiskey',40],['whisky',40],
+    ['brandy',40],['cognac',40],['hennessy',40],['courvoisier',40],['armagnac',40],
+    ['tanqueray',41],['hendricks',41],['bombay sapphire',47],['beefeater',40],['gin',40],
+    ['tequila',40],['patron',40],['espolon',40],['jose cuervo',38],['mezcal',40],
+    ['vodka',40],['absolut',40],['grey goose',40],['smirnoff',40],['ketel one',40],
+    ['rum',40],['bacardi',40],['captain morgan',35],['malibu',21],['coconut rum',21],
+    ['triple sec',40],['cointreau',40],['grand marnier',40],
+    ['kahlua',20],['coffee liqueur',20],['baileys',17],['irish cream',17],
+    ['chambord',16.5],['st. germain',20],['st germain',20],['elderflower',20],
+    ['campari',25],['aperol',11],['amaretto',24],['disaronno',28],
+    ['midori',20],['curacao',24],['peach schnapps',17],['schnapps',17],
+    ['frangelico',20],['drambuie',40],['pimms',25],['pimm',25],
+    ['amaro',30],['cynar',16.5],['fernet',39],['limoncello',30],['sloe gin',26],
+    ['lillet',17],['sweet vermouth',16],['dry vermouth',18],['vermouth',16],
+    ['port',20],['sherry',17],['madeira',18],['sake',15],['soju',25],
+    ['wine',13],['champagne',12],['prosecco',11],['cava',11.5],['moscato',7],
+    ['beer',5],['lager',4.5],['stout',5],['hard cider',5],
+    ['bitters',44],['angostura',44],['peychaud',35],
+    ['juice',0],['syrup',0],['grenadine',0],['soda',0],['water',0],
+    ['tonic',0],['ginger beer',0],['ginger ale',0],['cola',0],['lemonade',0],
+    ['cream',0],['coconut cream',0],['coconut water',0],['egg white',0],['egg',0],
+    ['simple syrup',0],['honey',0],['agave',0],['sugar',0]
+  ];
+  const sorted=[...table].sort((a,b)=>b[0].length-a[0].length);
+  for(const [key,abv] of sorted){if(n.includes(key))return abv;}
+  return null;
+}
+function lookupAbvForDraft(){
+  if(!ingredientDraft)return;
+  const name=[ingredientDraft.name,ingredientDraft.brand,ingredientDraft.variant,ingredientDraft.ingredientType,ingredientDraft.purchaseLabel].filter(Boolean).join(' ');
+  const abv=lookupAbv(name);
+  if(abv===null){alert('ABV not found. Enter a more specific ingredient name and try again.');return;}
+  ingredientDraft.abv=abv;
+  render();
+}
+function lookupAbvForEdit(id){
+  const ing=state.ingredients.find(x=>x.id===id);
+  if(!ing)return;
+  const name=[ing.name,ing.brand,ing.variant,ing.ingredientType,ing.purchaseLabel].filter(Boolean).join(' ');
+  const abv=lookupAbv(name);
+  if(abv===null){alert('ABV not found. Enter a more specific ingredient name and try again.');return;}
+  updateIngredient(id,'abv',abv);
+}
 function updateIngredientDraft(field,value){
   if(!ingredientDraft)return;
   const nums=['packageSize','packageCost','purchaseQty','purchaseCost','yieldQty'];
@@ -1503,7 +1557,7 @@ function renderIngredients(q){
           <div><label>Purchase Cost</label><input class="input" type="number" step="0.01" value="${Number(d.purchaseCost||0)}" onchange="updateIngredientDraft('purchaseCost',this.value)"></div>
           <div><label>Yield Qty</label><input class="input" type="number" step="0.01" value="${Number(d.yieldQty||25.3605)}" onchange="updateIngredientDraft('yieldQty',this.value)"></div>
           <div><label>Recipe Unit</label><select class="input" onchange="updateIngredientDraft('recipeUnit',this.value)">${unitOpts}</select></div>
-          <div><label>ABV % (0 if non-alcoholic)</label><input class="input" type="number" min="0" max="100" step="0.1" value="${Number(d.abv||0)}" onchange="updateIngredientDraft('abv',this.value)"></div>
+          <div><label>ABV % (0 if non-alcoholic)</label><div style="display:flex;gap:6px;align-items:center"><input class="input" style="flex:1" type="number" min="0" max="100" step="0.1" value="${Number(d.abv||0)}" onchange="updateIngredientDraft('abv',this.value)"><button type="button" class="secondary" style="padding:5px 10px;font-size:11px;white-space:nowrap;flex-shrink:0" onclick="lookupAbvForDraft()" title="Auto-detect ABV from ingredient name">🔍 Lookup</button></div></div>
           <div class="span2"><label>Buy As (Shopping List Label)</label><input class="input" placeholder="e.g. 750ml Bottle, Whole Orange..." value="${esc(d.purchaseLabel||'')}" onchange="updateIngredientDraft('purchaseLabel',this.value)"></div>
           <div><label>Storage Location</label>${storageLocSelectHtml(d.storageLocationId||'','draftSetStorageLoc(this.value)')}</div>
           <div><label>Bin / Space</label>${binSelectHtml(d.storageLocationId||'',d.bin||'','draftSetBin(this.value)')}</div>
@@ -1589,7 +1643,7 @@ function renderIngredients(q){
         <div><label>Variant</label><input class="input" value="${esc(selIng.variant||'')}" placeholder="Optional" onchange="updateIngredient('${selIng.id}','variant',this.value)"></div>
         <div><label>Display Name</label><input class="input" value="${esc(selIng.name||'')}" onchange="updateIngredient('${selIng.id}','name',this.value)"></div>
         <div><label>Category</label><select class="input" onchange="updateIngredient('${selIng.id}','category',this.value)"><option value="">—</option>${catOpts2.map(c=>`<option value="${c}" ${(selIng.category||'')===c?'selected':''}>${c}</option>`).join('')}</select></div>
-        <div><label>ABV %</label><input class="input" type="number" min="0" max="100" step="0.1" value="${Number(selIng.abv||0)}" onchange="updateIngredient('${selIng.id}','abv',this.value)"></div>
+        <div><label>ABV %</label><div style="display:flex;gap:6px;align-items:center"><input class="input" style="flex:1" type="number" min="0" max="100" step="0.1" value="${Number(selIng.abv||0)}" onchange="updateIngredient('${selIng.id}','abv',this.value)"><button type="button" class="secondary" style="padding:5px 10px;font-size:11px;white-space:nowrap;flex-shrink:0" onclick="lookupAbvForEdit('${selIng.id}')" title="Auto-detect ABV">🔍 Lookup</button></div></div>
         <div><label>Purchase Qty</label><input class="input" type="number" step="0.01" value="${Number(selIng.purchaseQty||0)}" onchange="updateIngredient('${selIng.id}','purchaseQty',this.value)"></div>
         <div><label>Purchase Unit</label><input class="input" list="ingBuyUnitList" value="${esc(selIng.purchaseUnit||'')}" onchange="updateIngredient('${selIng.id}','purchaseUnit',this.value)"></div>
         <div><label>Purchase Cost</label><input class="input" type="number" step="0.01" value="${Number(selIng.purchaseCost||0)}" onchange="updateIngredient('${selIng.id}','purchaseCost',this.value)"></div>
@@ -2083,7 +2137,7 @@ function renderRecipes(q){
       </div>
       <div>
         <div class="panelHead"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2>Recipe Builder</h2>
-          <button class="secondary" onclick="addRecipeLine()" style="font-size:12px;padding:5px 11px">+ Add Line</button>
+          <button class="secondary" onmousedown="event.preventDefault();addRecipeLine()" style="font-size:12px;padding:5px 11px">+ Add Line</button>
           <button class="btn-ghost" onclick="duplicateCocktail('${c.id}')" style="font-size:12px;padding:5px 11px">⧉ Duplicate</button>
           <button class="delete" onclick="deleteCocktail('${c.id}')" style="font-size:12px;padding:5px 8px">Delete</button>
         </div><div style="display:flex;align-items:center;gap:12px">
@@ -2129,6 +2183,19 @@ function renderRecipes(q){
               </label>
               ${c.isPublic?`<span style="font-size:10px;background:rgba(200,146,42,.15);color:var(--amber);padding:2px 10px;border-radius:99px;font-weight:700;white-space:nowrap">🌐 Public</span>`:''}
               ${c.savedFromCommunity?`<span style="font-size:10px;color:var(--ink3);margin-left:4px">Saved from ${esc(c.savedFromUser||'community')}</span>`:''}
+            </div>
+            <div class="compactRow" style="align-items:flex-start;gap:10px;padding:6px 0">
+              <span class="cLabel">Photo</span>
+              <div style="flex:1">
+                ${c.photo?`<img src="${esc(c.photo)}" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px;display:block">`:''}
+                <div style="display:flex;gap:8px;align-items:center">
+                  <label style="flex:1;padding:8px 12px;border:1px dashed var(--border);border-radius:8px;background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;text-align:center;color:var(--ink2)">
+                    📷 ${c.photo?'Change Photo':'Add Photo'}
+                    <input type="file" accept="image/*" style="display:none" onchange="handleCocktailPhoto('${c.id}',this.files[0])">
+                  </label>
+                  ${c.photo?`<button onclick="(()=>{const x=state.cocktails.find(x=>x.id==='${c.id}');if(x){x.photo='';saveData();render();}})()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:none;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">✕ Remove</button>`:''}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -5393,6 +5460,68 @@ function bsApply(barcode, p) {
 }
 
 
+// ===== PHOTO UPLOAD MODULE =====
+async function _resizeImage(file,maxW=1200,quality=0.85){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const r=Math.min(1,maxW/img.width);
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*r);c.height=Math.round(img.height*r);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b=>resolve(b),'image/jpeg',quality);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);resolve(file);};
+    img.src=url;
+  });
+}
+
+async function _uploadPhoto(file,path){
+  if(!currentUser)throw new Error('Not signed in');
+  const blob=await _resizeImage(file);
+  const {error}=await sbClient.storage.from('sc-photos').upload(path,blob,{contentType:'image/jpeg',upsert:true});
+  if(error)throw error;
+  return sbClient.storage.from('sc-photos').getPublicUrl(path).data.publicUrl;
+}
+
+async function handleCocktailPhoto(cocktailId,file){
+  if(!file||!currentUser)return;
+  if(typeof showSnack==='function')showSnack('⏳ Uploading photo…');
+  try{
+    const path=`cocktails/${currentUser.id}/${cocktailId}.jpg`;
+    const url=await _uploadPhoto(file,path);
+    const c=state.cocktails.find(x=>x.id===cocktailId);
+    if(c){
+      c.photo=url;saveData();
+      if(c.isPublic){
+        try{await sbClient.from('sc_public_recipes').update({cocktail_data:c}).eq('id',`${currentUser.id}_${cocktailId}`);}catch(e){}
+      }
+    }
+    showSnack('📸 Photo uploaded!');render();
+  }catch(e){
+    console.warn('Cocktail photo upload',e);
+    showSnack('Upload failed — make sure the "sc-photos" bucket exists in Supabase Storage');
+  }
+}
+
+async function handlePourPhoto(file){
+  if(!file||!currentUser)return;
+  if(typeof showSnack==='function')showSnack('⏳ Uploading photo…');
+  try{
+    const path=`pours/${currentUser.id}/${Date.now()}.jpg`;
+    const url=await _uploadPhoto(file,path);
+    _pourDraft.photoUrl=url;
+    showSnack('📸 Photo added!');
+  }catch(e){
+    console.warn('Pour photo upload',e);
+    showSnack('Photo upload failed');
+    _pourDraft.photoUrl='';
+  }
+  _renderPourForm();
+}
+
 // ===== COMMUNITY MODULE =====
 let commTab='feed';
 let _commFeed=[],_commRecipes=[],_commWines=[];
@@ -5464,10 +5593,10 @@ function _showBadgeToast(badge){
 }
 
 // ---- POUR LOG ----
-let _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true};
+let _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true,photoUrl:''};
 
 function openPourLog(){
-  _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true};
+  _pourDraft={type:'cocktail',name:'',note:'',rating:0,venue:'',isPublic:true,photoUrl:''};
   document.getElementById('pourLogOverlay').style.display='flex';
   _renderPourForm();
 }
@@ -5489,6 +5618,17 @@ function _renderPourForm(){
     <textarea oninput="_pourDraft.note=this.value" placeholder="How does it taste? Any observations?" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;height:68px;resize:vertical;margin-bottom:10px;box-sizing:border-box">${esc(_pourDraft.note)}</textarea>
     <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:6px">Rating</label>
     <div style="margin-bottom:12px;display:flex;gap:4px">${stars}</div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:6px">Photo <span style="font-weight:400;color:var(--ink3)">(optional)</span></label>
+      ${_pourDraft.photoUrl?`<img src="${esc(_pourDraft.photoUrl)}" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px;display:block">`:''}
+      <div style="display:flex;gap:8px">
+        <label style="flex:1;padding:8px;border:1px dashed var(--border);border-radius:8px;background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;text-align:center;color:var(--ink2)">
+          📷 ${_pourDraft.photoUrl?'Change':'Add Photo'}
+          <input type="file" accept="image/*" style="display:none" onchange="handlePourPhoto(this.files[0])">
+        </label>
+        ${_pourDraft.photoUrl?`<button onclick="_pourDraft.photoUrl='';_renderPourForm()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:none;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">✕</button>`:''}
+      </div>
+    </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:16px">
       <input type="checkbox" ${_pourDraft.isPublic?'checked':''} onchange="_pourDraft.isPublic=this.checked" style="accent-color:var(--amber);width:15px;height:15px">
       Share with community
@@ -5501,13 +5641,13 @@ function _renderPourForm(){
 async function submitPourLog(){
   if(!_pourDraft.name.trim()){alert('Please enter what you\'re drinking.');return;}
   if(!Array.isArray(state.pourLogs))state.pourLogs=[];
-  const entry={id:'pour_'+Date.now(),type:_pourDraft.type,name:_pourDraft.name.trim(),note:_pourDraft.note.trim(),rating:_pourDraft.rating,venue:_pourDraft.venue.trim(),isPublic:_pourDraft.isPublic,ts:new Date().toISOString()};
+  const entry={id:'pour_'+Date.now(),type:_pourDraft.type,name:_pourDraft.name.trim(),note:_pourDraft.note.trim(),rating:_pourDraft.rating,venue:_pourDraft.venue.trim(),isPublic:_pourDraft.isPublic,photoUrl:_pourDraft.photoUrl||'',ts:new Date().toISOString()};
   state.pourLogs.unshift(entry);
   saveData();
   if(currentUser&&entry.isPublic){
     try{
       const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
-      await sbClient.from('sc_pour_logs').insert({user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true});
+      await sbClient.from('sc_pour_logs').insert({user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true,photo_url:entry.photoUrl||null});
       _commFeed=[];
     }catch(e){console.warn('Pour log sync',e);}
   }
@@ -5661,6 +5801,7 @@ function _commRenderFeed(){
           ${item.venue?`<div style="font-size:11px;color:var(--ink3)">📍 ${esc(item.venue)}</div>`:''}
           ${stars?`<div style="color:var(--amber);font-size:15px;margin-top:4px">${stars}</div>`:''}
           ${item.note?`<div style="font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.6;font-style:italic;border-left:2px solid var(--border);padding-left:8px">"${esc(item.note)}"</div>`:''}
+          ${item.photo_url?`<img src="${esc(item.photo_url)}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-top:8px">`:''}
         </div>`;
       }else{
         return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px">
@@ -5687,15 +5828,19 @@ function _commRenderRecipes(){
     ${_commRecipes.map(r=>{
       let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
       const ingCount=(parsed.recipe||[]).length;
-      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-          <div style="flex:1"><div style="font-size:15px;font-weight:700;margin-bottom:2px">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
-          <span style="font-size:10px;background:rgba(200,146,42,.1);color:var(--amber);padding:2px 8px;border-radius:99px;font-weight:700;white-space:nowrap">${ingCount} ing.</span>
-        </div>
-        ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);line-height:1.5">${esc(parsed.notes.slice(0,90))}${parsed.notes.length>90?'…':''}</div>`:''}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;border-top:1px solid var(--surface2)">
-          <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}</span>
-          <button onclick="saveCommunityRecipe('${r.id}')" style="padding:5px 12px;background:var(--amber);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Save to Bar</button>
+      const photo=parsed.photo||'';
+      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
+        ${photo?`<img src="${esc(photo)}" style="width:100%;height:140px;object-fit:cover">`:''}
+        <div style="padding:14px;display:flex;flex-direction:column;gap:8px;flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="flex:1"><div style="font-size:15px;font-weight:700;margin-bottom:2px">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
+            <span style="font-size:10px;background:rgba(200,146,42,.1);color:var(--amber);padding:2px 8px;border-radius:99px;font-weight:700;white-space:nowrap">${ingCount} ing.</span>
+          </div>
+          ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);line-height:1.5">${esc(parsed.notes.slice(0,90))}${parsed.notes.length>90?'…':''}</div>`:''}
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;border-top:1px solid var(--surface2)">
+            <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}</span>
+            <button onclick="saveCommunityRecipe('${r.id}')" style="padding:5px 12px;background:var(--amber);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Save to Bar</button>
+          </div>
         </div>
       </div>`;
     }).join('')}
