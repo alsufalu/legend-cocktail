@@ -439,9 +439,11 @@ details[open] > summary .chevron { transform: rotate(180deg); }
   box-shadow: none;
   font-size: 13px;
   font-family: inherit;
+  overflow: hidden;
+  width: 100%;
 }
 .cardBtn strong { display: block; font-weight: 600; text-transform: capitalize; color: var(--ink); }
-.cardBtn small { color: var(--ink3); font-size: 11px; font-family: var(--mono); text-transform: capitalize; }
+.cardBtn small { display: block; color: var(--ink3); font-size: 11px; font-family: var(--mono); text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cardBtn:hover { background: var(--surface3); filter: none; }
 .cardBtn.active { border-color: var(--blue); background: #eef5ff; }
 .cardBtn.active strong { color: var(--blue); }
@@ -870,7 +872,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.02</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.05</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -2082,7 +2084,7 @@ function renderRecipes(q){
     }
     return `<button class="cardBtn ${x.id===c.id?'active':''}" onclick="state.selectedCocktailId='${x.id}';render()">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-        <b style="flex:1;text-align:left">${esc(x.name)}</b>${abvBadge}
+        <b style="flex:1;text-align:left;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.name)}</b>${abvBadge}
         ${x.savedFromCommunity?`<span style="font-size:9px;background:rgba(0,112,242,.1);color:#0070f2;border-radius:4px;padding:1px 5px;font-weight:700;flex-shrink:0">↓</span>`:''}
       </div>
       <small>Cost: ${money(cocktailCost(x))}${x.savedFromCommunity?` · from ${esc(x.savedFromUser||'community')}`:''}${x.savedFromDate?' · '+new Date(x.savedFromDate).toLocaleDateString():''}</small>
@@ -2096,16 +2098,20 @@ function renderRecipes(q){
 
   const rows = (c.recipe||[]).map((r,idx)=>{
     const ing=im[r.ingredientId];
+    const embeddedName=r._ingDisplay||r._ingName||'';
     const selectedLabel = ing
       ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${esc(ing.name)}</span>`
-      : `<span style="font-size:11px;font-style:italic;color:var(--ink3)">No ingredient selected</span>`;
+      : embeddedName
+        ? `<span style="font-size:11px;font-weight:600;color:#d97706">${esc(embeddedName)}</span><span style="font-size:10px;color:#d97706;margin-left:4px">⚠ not in your bar</span>`
+        : `<span style="font-size:11px;font-style:italic;color:var(--ink3)">No ingredient selected</span>`;
+    const inputVal=ing?ing.name:embeddedName;
     return `<div class="row recipeRow" style="padding:7px 10px">
       <div class="ingredientSearchWrap">
         <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
           <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3)">Selected:</span>
           ${selectedLabel}
         </div>
-        <input id="ingredientSearch_${idx}" data-cocktail-id="${c.id}" class="input" style="padding:5px 8px;font-size:12px" value="${esc(ing?ing.name:'')}" placeholder="Search ingredient…" oninput="showIngredientResults(${idx},this.value)" onfocus="showIngredientResults(${idx},this.value)" onblur="hideIngredientResultsLater(${idx})">
+        <input id="ingredientSearch_${idx}" data-cocktail-id="${c.id}" class="input" style="padding:5px 8px;font-size:12px${embeddedName&&!ing?';border-color:#f59e0b':''}" value="${esc(inputVal)}" placeholder="Search ingredient…" oninput="showIngredientResults(${idx},this.value)" onfocus="showIngredientResults(${idx},this.value)" onblur="hideIngredientResultsLater(${idx})">
         <div id="ingredientResults_${idx}" class="ingredientResults" style="display:none"></div>
       </div>
       <div><input class="input" style="padding:5px 8px;font-size:12px" type="number" step="0.01" value="${r.qty}" onchange="updateRecipeLineForCocktail('${c.id}',${idx},'qty',this.value)"></div>
@@ -5669,7 +5675,14 @@ async function toggleRecipePublic(cocktailId){
     const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
     try{
       if(c.isPublic){
-        await sbClient.from('sc_public_recipes').upsert({id:`${currentUser.id}_${cocktailId}`,user_id:currentUser.id,display_name:dn,cocktail_id:cocktailId,cocktail_data:c,name:c.name,category:c.category||'',glass:c.glass||'',garnish:c.garnish||''},{onConflict:'id'});
+        // Embed ingredient names in each recipe line so importers can see them even if IDs differ
+        const im=ingMap();
+        const enrichedRecipe=(c.recipe||[]).map(line=>{
+          const ing=im[line.ingredientId];
+          return {...line,_ingDisplay:ing?.displayName||ing?.name||'',_ingName:ing?.name||''};
+        });
+        const sharedData={...c,recipe:enrichedRecipe};
+        await sbClient.from('sc_public_recipes').upsert({id:`${currentUser.id}_${cocktailId}`,user_id:currentUser.id,display_name:dn,cocktail_id:cocktailId,cocktail_data:sharedData,name:c.name,category:c.category||'',glass:c.glass||'',garnish:c.garnish||''},{onConflict:'id'});
       }else{
         await sbClient.from('sc_public_recipes').delete().eq('id',`${currentUser.id}_${cocktailId}`);
       }
@@ -5706,11 +5719,26 @@ async function saveCommunityRecipe(recipeId){
   try{
     const parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});
     const newId='cocktail-comm-'+Date.now();
-    // Handle name collision: if a recipe with same name already exists, suffix with source
+    // Handle name collision
     let importName=parsed.name||r.name||'Imported Recipe';
     const nameExists=(state.cocktails||[]).some(x=>x.name===importName);
     if(nameExists)importName=importName+' (↓ '+(r.display_name||'Community')+')';
-    const nc={...parsed,id:newId,name:importName,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name||'Community',savedFromDate:new Date().toISOString()};
+    // Resolve ingredients: match by ID first, then by embedded name — never add to ingredient table
+    const im=ingMap();
+    const resolvedRecipe=(parsed.recipe||[]).map(line=>{
+      if(im[line.ingredientId])return line; // exact match in this user's bar
+      const searchName=(line._ingDisplay||line._ingName||'').toLowerCase().trim();
+      if(searchName){
+        const match=state.ingredients.find(i=>
+          (i.displayName||'').toLowerCase().trim()===searchName||
+          (i.name||'').toLowerCase().trim()===searchName
+        );
+        if(match)return{...line,ingredientId:match.id}; // matched by name
+      }
+      // No match — keep embedded name as hint, clear invalid ID so cost shows $0.00
+      return{...line,ingredientId:'',_ingUnmatched:true};
+    });
+    const nc={...parsed,id:newId,name:importName,recipe:resolvedRecipe,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name||'Community',savedFromDate:new Date().toISOString()};
     if(!Array.isArray(state.cocktails))state.cocktails=[];
     state.cocktails.push(nc);
     saveData();
@@ -5908,7 +5936,7 @@ function _commRenderRecipes(){
     const ingCount=(parsed.recipe||[]).length;
     const photo=parsed.photo||'';
     const saves=r.save_count||0;
-    return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
+    return`<div onclick="commPreviewRecipe('${r.id}')" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
       ${photo?`<img src="${esc(photo)}" style="width:100%;height:140px;object-fit:cover">`:''}
       <div style="padding:14px;display:flex;flex-direction:column;gap:8px;flex:1">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -5918,7 +5946,7 @@ function _commRenderRecipes(){
         ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);line-height:1.5">${esc(parsed.notes.slice(0,90))}${parsed.notes.length>90?'…':''}</div>`:''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;border-top:1px solid var(--surface2)">
           <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}${saves?` · 💾 ${saves}`:''}</span>
-          <button onclick="saveCommunityRecipe('${r.id}')" style="padding:5px 12px;background:var(--amber);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Save to Bar</button>
+          <span style="font-size:11px;color:var(--blue);font-weight:600">View Recipe →</span>
         </div>
       </div>
     </div>`;
@@ -5941,6 +5969,63 @@ function _commRenderRecipes(){
        <button onclick="_recipesLoaded=false;_commRecipes=[];commLoadRecipes()" style="margin-top:14px;padding:6px 18px;background:none;border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Retry</button></div>`;
 
   return searchBar+popularSection;
+}
+
+function commPreviewRecipe(recipeId){
+  const r=_commRecipes.find(x=>x.id===recipeId)||_recipeSearchResults.find(x=>x.id===recipeId);
+  if(!r)return;
+  let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
+  const photo=parsed.photo||'';
+  const saves=r.save_count||0;
+  const details=[
+    r.glass&&`<span>🥃 ${esc(r.glass)}</span>`,
+    parsed.served&&`<span>🧊 ${esc(parsed.served)}</span>`,
+    parsed.build&&`<span>🔧 ${esc(parsed.build)}</span>`,
+    parsed.garnish&&`<span>🌿 ${esc(parsed.garnish)}</span>`,
+  ].filter(Boolean).join('<span style="color:var(--border);margin:0 4px">·</span>');
+  const ingredientRows=(parsed.recipe||[]).map(line=>{
+    const name=line._ingDisplay||line._ingName||'Unknown ingredient';
+    const qty=line.qty||'';
+    const unit=line.unit||'';
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--surface2)">
+      <span style="font-size:13px;color:var(--ink)">${esc(name)}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--ink2);white-space:nowrap;margin-left:12px">${esc(String(qty))} ${esc(unit)}</span>
+    </div>`;
+  }).join('');
+
+  // Build or reuse modal
+  let modal=document.getElementById('commPreviewModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='commPreviewModal';
+    modal.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+    modal.onclick=e=>{if(e.target===modal)modal.style.display='none';};
+    document.body.appendChild(modal);
+  }
+  modal.style.display='flex';
+  modal.innerHTML=`<div style="background:var(--surface);border-radius:16px;width:min(96vw,520px);max-height:88vh;overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.4);display:flex;flex-direction:column">
+    ${photo?`<img src="${esc(photo)}" style="width:100%;height:200px;object-fit:cover;border-radius:16px 16px 0 0;flex-shrink:0">`:''}
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>
+          <div style="font-size:20px;font-weight:800;margin-bottom:3px">${esc(r.name)}</div>
+          <div style="font-size:12px;color:var(--ink3)">${esc(r.category||'')} · by ${esc(r.display_name||'Member')}${saves?' · 💾 '+saves+' saves':''}</div>
+        </div>
+        <button onclick="document.getElementById('commPreviewModal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);flex-shrink:0;line-height:1;padding:0">✕</button>
+      </div>
+      ${details?`<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--ink2)">${details}</div>`:''}
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:6px">Ingredients</div>
+        ${ingredientRows||'<div style="color:var(--ink3);font-size:13px">No ingredients listed.</div>'}
+      </div>
+      ${parsed.notes?`<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--ink2);line-height:1.6;font-style:italic">"${esc(parsed.notes)}"</div>`:''}
+      ${parsed.instructions&&parsed.instructions!=='none'?`<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:4px">Instructions</div><div style="font-size:13px;color:var(--ink2);line-height:1.6">${esc(parsed.instructions)}</div></div>`:''}
+      <div style="display:flex;gap:10px;padding-top:6px;border-top:1px solid var(--border)">
+        <button onclick="document.getElementById('commPreviewModal').style.display='none'" style="flex:1;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink2)">Close</button>
+        <button onclick="document.getElementById('commPreviewModal').style.display='none';saveCommunityRecipe('${r.id}')" style="flex:2;padding:10px;background:var(--amber);border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;color:#fff">💾 Save to Bar</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function _commRenderWines(){
