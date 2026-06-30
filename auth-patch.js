@@ -141,6 +141,31 @@
 
     // Listen for auth changes
     sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User arrived via password-reset link — hide login, show change-password form
+        const overlay = document.getElementById('loginOverlay');
+        if (overlay) overlay.classList.add('hidden');
+        const modal = document.getElementById('accountModal');
+        if (modal) {
+          const emailEl = document.getElementById('modalUserEmail');
+          if (emailEl) emailEl.textContent = (session?.user?.email || '') + ' — Set a new password below';
+          modal.classList.remove('hidden');
+          // Scroll to password section and focus
+          const inp = document.getElementById('newPwdInput');
+          if (inp) { inp.focus(); inp.scrollIntoView({behavior:'smooth'}); }
+          // Show a banner inside the modal
+          let banner = document.getElementById('pwRecoveryBanner');
+          if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'pwRecoveryBanner';
+            banner.style.cssText = 'background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:10px 14px;font-size:13px;color:#166534;margin-bottom:16px;font-weight:600';
+            banner.textContent = '✅ Password reset link verified. Enter your new password below.';
+            const box = modal.querySelector('.modal-box');
+            if (box) box.insertBefore(banner, box.firstChild);
+          }
+        }
+        return;
+      }
       if (session?.user && !currentUser) {
         currentUser = session.user;
         onSignedIn();
@@ -167,7 +192,10 @@
     }
     const btn = document.getElementById('authSubmitBtn');
     if(btn)btn.disabled=true;
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    // Use the actual hosted URL if on GitHub Pages; otherwise let Supabase use its configured Site URL
+    const isHosted = window.location.protocol === 'https:' || window.location.protocol === 'http:';
+    const resetOpts = isHosted ? { redirectTo: window.location.href.split('#')[0] } : {};
+    const { error } = await sb.auth.resetPasswordForEmail(email, resetOpts);
     if(btn)btn.disabled=false;
     if (error) {
       if(err){err.style.color='#dc2626';err.textContent=error.message;}

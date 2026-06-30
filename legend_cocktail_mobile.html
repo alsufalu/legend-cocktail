@@ -1457,8 +1457,8 @@ function getCocktailCards() {
     const abv = cocktailAbv(c);
     return `<div class="card" onclick="openCocktailSheet('${c.id}')">
       <div class="card-body">
-        <div class="card-name">${esc(c.name)}</div>
-        <div class="card-sub">${esc(c.category||'')} · ${(c.recipe||[]).length} ingredients</div>
+        <div class="card-name">${esc(c.name)}${c.savedFromCommunity?` <span style="font-size:10px;background:rgba(0,112,242,.12);color:#0070f2;border-radius:4px;padding:1px 5px;font-weight:700;vertical-align:middle">↓</span>`:''}</div>
+        <div class="card-sub">${c.savedFromCommunity?`from ${esc(c.savedFromUser||'community')} · `:''}${esc(c.category||'')} · ${(c.recipe||[]).length} ingredients</div>
       </div>
       <div class="card-right">
         ${abv !== null ? `<span class="abv-pill">${abv.toFixed(1)}%</span>` : ''}
@@ -1628,6 +1628,7 @@ function renderCocktailSheet() {
       <div class="field"><label>Garnish</label><input type="text" value="${esc(c.garnish||'')}" oninput="cocktailDraft.garnish=this.value" placeholder="e.g. Lime wheel"/></div>
       <div class="field"><label>Notes</label><textarea oninput="cocktailDraft.notes=this.value">${esc(c.notes||'')}</textarea></div>
       <div class="field"><label>Special Instructions</label><textarea oninput="cocktailDraft.specialInstructions=this.value">${esc(c.specialInstructions||'')}</textarea></div>
+      ${c.savedFromCommunity?`<div style="background:rgba(0,112,242,.07);border:1px solid rgba(0,112,242,.2);border-radius:10px;padding:10px 12px;margin-bottom:2px"><div style="font-size:12px;font-weight:700;color:#0070f2;margin-bottom:2px">↓ Imported from Community</div><div style="font-size:12px;color:var(--ink2)">Shared by <strong>${esc(c.savedFromUser||'a member')}</strong>${c.savedFromDate?' · Saved '+new Date(c.savedFromDate).toLocaleDateString():''}</div></div>`:''}
       <div class="field" style="background:${c.isPublic?'rgba(200,146,42,.06)':'transparent'};border-radius:8px;padding:10px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:0">
           <input type="checkbox" ${c.isPublic?'checked':''} onchange="cocktailDraft.isPublic=this.checked" style="accent-color:#c8922a;width:18px;height:18px;flex-shrink:0">
@@ -3849,7 +3850,10 @@ async function saveCommunityRecipeMobile(recipeId){
   try{
     const parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});
     const newId='cocktail-comm-'+Date.now();
-    const nc={...parsed,id:newId,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name};
+    let importName=parsed.name||r.name||'Imported Recipe';
+    const nameExists=(state.cocktails||[]).some(x=>x.name===importName);
+    if(nameExists)importName=importName+' (↓ '+(r.display_name||'Community')+')';
+    const nc={...parsed,id:newId,name:importName,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name||'Community',savedFromDate:new Date().toISOString()};
     if(!Array.isArray(state.cocktails))state.cocktails=[];
     state.cocktails.push(nc);
     saveData();

@@ -2083,8 +2083,9 @@ function renderRecipes(q){
     return `<button class="cardBtn ${x.id===c.id?'active':''}" onclick="state.selectedCocktailId='${x.id}';render()">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
         <b style="flex:1;text-align:left">${esc(x.name)}</b>${abvBadge}
+        ${x.savedFromCommunity?`<span style="font-size:9px;background:rgba(0,112,242,.1);color:#0070f2;border-radius:4px;padding:1px 5px;font-weight:700;flex-shrink:0">↓</span>`:''}
       </div>
-      <small>Cost: ${money(cocktailCost(x))}</small>
+      <small>Cost: ${money(cocktailCost(x))}${x.savedFromCommunity?` · from ${esc(x.savedFromUser||'community')}`:''}${x.savedFromDate?' · '+new Date(x.savedFromDate).toLocaleDateString():''}</small>
     </button>`;
   }).join('');
 
@@ -2182,7 +2183,7 @@ function renderRecipes(q){
                 <span style="font-size:12px;font-weight:500">Share in Community Library</span>
               </label>
               ${c.isPublic?`<span style="font-size:10px;background:rgba(200,146,42,.15);color:var(--amber);padding:2px 10px;border-radius:99px;font-weight:700;white-space:nowrap">🌐 Public</span>`:''}
-              ${c.savedFromCommunity?`<span style="font-size:10px;color:var(--ink3);margin-left:4px">Saved from ${esc(c.savedFromUser||'community')}</span>`:''}
+              ${c.savedFromCommunity?`<span style="font-size:10px;color:#0070f2;background:rgba(0,112,242,.08);border:1px solid rgba(0,112,242,.2);border-radius:4px;padding:1px 7px;margin-left:4px;font-weight:600">↓ Imported from ${esc(c.savedFromUser||'community')}${c.savedFromDate?' · '+new Date(c.savedFromDate).toLocaleDateString():''}</span>`:''}
             </div>
             <div class="compactRow" style="align-items:flex-start;gap:10px;padding:6px 0">
               <span class="cLabel">Photo</span>
@@ -5701,7 +5702,11 @@ async function saveCommunityRecipe(recipeId){
   try{
     const parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});
     const newId='cocktail-comm-'+Date.now();
-    const nc={...parsed,id:newId,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name};
+    // Handle name collision: if a recipe with same name already exists, suffix with source
+    let importName=parsed.name||r.name||'Imported Recipe';
+    const nameExists=(state.cocktails||[]).some(x=>x.name===importName);
+    if(nameExists)importName=importName+' (↓ '+( r.display_name||'Community')+')';
+    const nc={...parsed,id:newId,name:importName,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name||'Community',savedFromDate:new Date().toISOString()};
     if(!Array.isArray(state.cocktails))state.cocktails=[];
     state.cocktails.push(nc);
     saveData();
