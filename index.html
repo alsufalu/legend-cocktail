@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.07</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.08</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -5811,9 +5811,13 @@ async function commSearchRecipes(){
 function commSetRecipeQuery(val){
   _recipeSearchQuery=val;
   clearTimeout(_recipeSearchTimer);
-  if(!val&&!_recipeSearchCategory){_recipeSearchResults=[];render();return;}
+  if(!val&&!_recipeSearchCategory){
+    _recipeSearchResults=[];_recipeSearching=false;
+    render();return; // clear results and re-render only when emptied
+  }
+  // Don't call render() here — it would destroy the input and kill focus.
+  // Just wait for the debounce then render when results arrive.
   _recipeSearchTimer=setTimeout(commSearchRecipes,400);
-  render();
 }
 function commSetRecipeCat(cat){
   _recipeSearchCategory=(_recipeSearchCategory===cat)?'':cat;

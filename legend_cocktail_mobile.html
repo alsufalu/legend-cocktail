@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.07</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.08</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -3947,9 +3947,13 @@ async function commSearchRecipes(){
 function commSetRecipeQuery(val){
   _recipeSearchQuery=val;
   clearTimeout(_recipeSearchTimer);
-  if(!val&&!_recipeSearchCategory){_recipeSearchResults=[];render();return;}
+  if(!val&&!_recipeSearchCategory){
+    _recipeSearchResults=[];_recipeSearching=false;
+    render();return; // clear results and re-render only when emptied
+  }
+  // Don't call render() here — it would destroy the input and kill focus.
+  // Just wait for the debounce then render when results arrive.
   _recipeSearchTimer=setTimeout(commSearchRecipes,400);
-  render();
 }
 function commSetRecipeCat(cat){
   _recipeSearchCategory=(_recipeSearchCategory===cat)?'':cat;
