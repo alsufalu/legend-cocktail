@@ -229,7 +229,6 @@ button, .fileLabel {
   border-radius: var(--radius-sm);
   padding: 7px 14px;
   cursor: pointer;
-  box-sizing: border-box;
   font-weight: 500;
   font-size: 13px;
   font-family: inherit;
@@ -440,8 +439,6 @@ details[open] > summary .chevron { transform: rotate(180deg); }
   box-shadow: none;
   font-size: 13px;
   font-family: inherit;
-  overflow: hidden;
-  width: 100%;
 }
 .cardBtn strong { display: block; font-weight: 600; text-transform: capitalize; color: var(--ink); }
 .cardBtn small { display: block; color: var(--ink3); font-size: 11px; font-family: var(--mono); text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -873,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.06</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.07</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1359,6 +1356,8 @@ function render(){
   if(!Array.isArray(state.savedMenus))state.savedMenus=[];
   if(state.activeMenuName===undefined)state.activeMenuName='';
   if(state.activeMenuId===undefined)state.activeMenuId='';
+  // Keep sidebar active state in sync with state.tab
+  document.querySelectorAll('.tab[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));
   renderMetrics();
   // Save focus state before innerHTML replacement destroys the active element
   const af=document.activeElement;
