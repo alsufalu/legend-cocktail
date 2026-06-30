@@ -5747,14 +5747,33 @@ async function commLoadRecipes(){
 async function commSearchRecipes(){
   if(!_recipeSearchQuery&&!_recipeSearchCategory){_recipeSearchResults=[];_recipeSearching=false;render();return;}
   _recipeSearching=true;render();
-  try{
-    let q=sbClient.from('sc_public_recipes').select('*');
-    if(_recipeSearchQuery)q=q.ilike('name',`%${_recipeSearchQuery}%`);
-    if(_recipeSearchCategory)q=q.ilike('category',`%${_recipeSearchCategory}%`);
-    try{q=q.order('save_count',{ascending:false});}catch(e){}
-    const{data}=await q.limit(30);
-    _recipeSearchResults=data||[];
-  }catch(e){console.warn('Recipe search',e);_recipeSearchResults=[];}
+  let found=null;
+  if(_recipeSearchQuery){
+    // Full-text search across name + category + ingredients + notes
+    try{
+      let q=sbClient.from('sc_public_recipes').select('*')
+        .textSearch('search_vector',_recipeSearchQuery,{type:'plain',config:'english'});
+      if(_recipeSearchCategory)q=q.ilike('category',`%${_recipeSearchCategory}%`);
+      const{data,error}=await q.limit(30);
+      if(!error)found=data;
+    }catch(e){}
+    // Fallback to name-only search if migration hasn't been run yet
+    if(!found){
+      try{
+        let q=sbClient.from('sc_public_recipes').select('*').ilike('name',`%${_recipeSearchQuery}%`);
+        if(_recipeSearchCategory)q=q.ilike('category',`%${_recipeSearchCategory}%`);
+        const{data}=await q.limit(30);
+        found=data||[];
+      }catch(e2){console.warn('Recipe search fallback',e2);found=[];}
+    }
+  }else{
+    // Category filter only
+    try{
+      const{data}=await sbClient.from('sc_public_recipes').select('*').ilike('category',`%${_recipeSearchCategory}%`).limit(30);
+      found=data||[];
+    }catch(e){found=[];}
+  }
+  _recipeSearchResults=found||[];
   _recipeSearching=false;render();
 }
 function commSetRecipeQuery(val){
