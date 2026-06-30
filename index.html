@@ -5528,6 +5528,8 @@ let commTab='feed';
 let _commFeed=[],_commRecipes=[],_commWines=[];
 let _feedLoading=false,_recipesLoading=false,_winesLoading=false;
 let _feedLoaded=false,_recipesLoaded=false,_winesLoaded=false;
+// Recipe search state
+let _recipeSearchQuery='',_recipeSearchCategory='',_recipeSearchResults=[],_recipeSearching=false,_recipeSearchTimer=null;
 
 const BADGES=[
   {id:'first_pour',  icon:'🍹',name:'First Pour',       desc:'Logged your first drink',         cat:'cocktails'},
@@ -5731,8 +5733,44 @@ async function commLoadFeed(){
 
 async function commLoadRecipes(){
   _recipesLoading=true;render();
-  try{const {data}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(60);_commRecipes=data||[];}catch(e){console.warn('Recipes load',e);_commRecipes=[];}
+  try{
+    // Top 8 most-saved (requires save_count column — see SQL migration)
+    const{data}=await sbClient.from('sc_public_recipes').select('*').order('save_count',{ascending:false}).limit(8);
+    _commRecipes=data||[];
+  }catch(e){
+    // Fallback before migration: order by newest
+    try{const{data}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(8);_commRecipes=data||[];}
+    catch(e2){console.warn('Recipes load',e2);_commRecipes=[];}
+  }
   _recipesLoading=false;_recipesLoaded=true;render();
+}
+async function commSearchRecipes(){
+  if(!_recipeSearchQuery&&!_recipeSearchCategory){_recipeSearchResults=[];_recipeSearching=false;render();return;}
+  _recipeSearching=true;render();
+  try{
+    let q=sbClient.from('sc_public_recipes').select('*');
+    if(_recipeSearchQuery)q=q.ilike('name',`%${_recipeSearchQuery}%`);
+    if(_recipeSearchCategory)q=q.ilike('category',`%${_recipeSearchCategory}%`);
+    try{q=q.order('save_count',{ascending:false});}catch(e){}
+    const{data}=await q.limit(30);
+    _recipeSearchResults=data||[];
+  }catch(e){console.warn('Recipe search',e);_recipeSearchResults=[];}
+  _recipeSearching=false;render();
+}
+function commSetRecipeQuery(val){
+  _recipeSearchQuery=val;
+  clearTimeout(_recipeSearchTimer);
+  if(!val&&!_recipeSearchCategory){_recipeSearchResults=[];render();return;}
+  _recipeSearchTimer=setTimeout(commSearchRecipes,400);
+  render();
+}
+function commSetRecipeCat(cat){
+  _recipeSearchCategory=(_recipeSearchCategory===cat)?'':cat;
+  commSearchRecipes();
+}
+function commClearRecipeSearch(){
+  _recipeSearchQuery='';_recipeSearchCategory='';_recipeSearchResults=[];_recipeSearching=false;
+  clearTimeout(_recipeSearchTimer);render();
 }
 
 async function commLoadWines(){
@@ -5815,29 +5853,55 @@ function _commRenderFeed(){
 }
 
 function _commRenderRecipes(){
-  if(_recipesLoading)return'<div style="text-align:center;padding:50px;color:var(--ink3)">⏳ Loading recipes…</div>';
-  if(_commRecipes.length===0)return`<div style="text-align:center;padding:50px 20px"><div style="font-size:40px;margin-bottom:12px">🍹</div><p style="color:var(--ink3)">No recipes shared yet.<br>Go to Recipes tab, open a cocktail, and check "Share in Community Library"!</p><button onclick="_recipesLoaded=false;_commRecipes=[];commLoadRecipes()" style="margin-top:14px;padding:6px 18px;background:none;border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Retry</button></div>`;
-  return`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
-    ${_commRecipes.map(r=>{
-      let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
-      const ingCount=(parsed.recipe||[]).length;
-      const photo=parsed.photo||'';
-      return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
-        ${photo?`<img src="${esc(photo)}" style="width:100%;height:140px;object-fit:cover">`:''}
-        <div style="padding:14px;display:flex;flex-direction:column;gap:8px;flex:1">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-            <div style="flex:1"><div style="font-size:15px;font-weight:700;margin-bottom:2px">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
-            <span style="font-size:10px;background:rgba(200,146,42,.1);color:var(--amber);padding:2px 8px;border-radius:99px;font-weight:700;white-space:nowrap">${ingCount} ing.</span>
-          </div>
-          ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);line-height:1.5">${esc(parsed.notes.slice(0,90))}${parsed.notes.length>90?'…':''}</div>`:''}
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;border-top:1px solid var(--surface2)">
-            <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}</span>
-            <button onclick="saveCommunityRecipe('${r.id}')" style="padding:5px 12px;background:var(--amber);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Save to Bar</button>
-          </div>
-        </div>
-      </div>`;
-    }).join('')}
+  const cats=['Cocktail','Mocktail','Shot','Punch','Other'];
+  const searchBar=`<div style="display:flex;gap:8px;margin-bottom:10px">
+    <input id="recipeSearchInput" type="search" placeholder="Search recipes by name…" value="${esc(_recipeSearchQuery)}"
+      oninput="commSetRecipeQuery(this.value)"
+      style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--ink);outline:none">
+    ${_recipeSearchQuery||_recipeSearchCategory?`<button onclick="commClearRecipeSearch()" style="padding:6px 12px;background:none;border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">✕ Clear</button>`:''}
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+    ${cats.map(c=>`<button onclick="commSetRecipeCat('${c}')" style="padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${_recipeSearchCategory===c?'var(--amber)':'var(--border)'};background:${_recipeSearchCategory===c?'var(--amber)':'none'};color:${_recipeSearchCategory===c?'#fff':'var(--ink3)'}">${c}</button>`).join('')}
   </div>`;
+
+  function _renderCard(r){
+    let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
+    const ingCount=(parsed.recipe||[]).length;
+    const photo=parsed.photo||'';
+    const saves=r.save_count||0;
+    return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
+      ${photo?`<img src="${esc(photo)}" style="width:100%;height:140px;object-fit:cover">`:''}
+      <div style="padding:14px;display:flex;flex-direction:column;gap:8px;flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="flex:1"><div style="font-size:15px;font-weight:700;margin-bottom:2px">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
+          <span style="font-size:10px;background:rgba(200,146,42,.1);color:var(--amber);padding:2px 8px;border-radius:99px;font-weight:700;white-space:nowrap">${ingCount} ing.</span>
+        </div>
+        ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);line-height:1.5">${esc(parsed.notes.slice(0,90))}${parsed.notes.length>90?'…':''}</div>`:''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;border-top:1px solid var(--surface2)">
+          <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}${saves?` · 💾 ${saves}`:''}</span>
+          <button onclick="saveCommunityRecipe('${r.id}')" style="padding:5px 12px;background:var(--amber);border:none;border-radius:7px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Save to Bar</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ── Searching ──
+  if(_recipeSearchQuery||_recipeSearchCategory){
+    if(_recipeSearching)return searchBar+`<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Searching…</div>`;
+    if(!_recipeSearchResults.length)return searchBar+`<div style="text-align:center;padding:40px 20px;color:var(--ink3)">No recipes found for "${esc(_recipeSearchQuery||_recipeSearchCategory)}".</div>`;
+    return searchBar+`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">${_recipeSearchResults.length} result${_recipeSearchResults.length!==1?'s':''}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${_recipeSearchResults.map(_renderCard).join('')}</div>`;
+  }
+
+  // ── Popular shelf (no active search) ──
+  if(_recipesLoading)return searchBar+`<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading…</div>`;
+  const popularSection=_commRecipes.length
+    ? `<div style="font-size:13px;font-weight:700;margin-bottom:10px">⭐ Most Saved</div>
+       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${_commRecipes.map(_renderCard).join('')}</div>`
+    : `<div style="text-align:center;padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">🍹</div><p style="color:var(--ink3)">No recipes shared yet.<br>Open a cocktail in your Recipes tab and turn on "Share in Community Library"!</p>
+       <button onclick="_recipesLoaded=false;_commRecipes=[];commLoadRecipes()" style="margin-top:14px;padding:6px 18px;background:none;border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Retry</button></div>`;
+
+  return searchBar+popularSection;
 }
 
 function _commRenderWines(){
