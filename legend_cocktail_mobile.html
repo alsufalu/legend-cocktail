@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.0</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.01</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -3847,7 +3847,9 @@ async function shareWineReviewCommMobile(){
 // ---- SAVE COMMUNITY RECIPE (mobile) ----
 async function saveCommunityRecipeMobile(recipeId){
   if(!currentUser){showSnack('Sign in to save recipes.');return;}
-  const r=_commRecipes.find(x=>x.id===recipeId);if(!r)return;
+  // Look in popular shelf AND search results
+  const r=_commRecipes.find(x=>x.id===recipeId)||_recipeSearchResults.find(x=>x.id===recipeId);
+  if(!r){console.warn('saveCommunityRecipeMobile: recipe not found',recipeId);return;}
   try{
     const parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});
     const newId='cocktail-comm-'+Date.now();
@@ -3858,9 +3860,11 @@ async function saveCommunityRecipeMobile(recipeId){
     if(!Array.isArray(state.cocktails))state.cocktails=[];
     state.cocktails.push(nc);
     saveData();
-    showSnack('Recipe saved to your bar!');
+    // Increment save_count in Supabase (best-effort, requires migration)
+    try{await sbClient.from('sc_public_recipes').update({save_count:(r.save_count||0)+1}).eq('id',recipeId);}catch(e){}
+    showSnack('✅ "'+importName+'" saved! Find it in Recipes.');
     setTab('recipes');
-  }catch(e){console.warn('Save recipe mobile',e);}
+  }catch(e){console.warn('Save recipe mobile',e);showSnack('❌ Could not save recipe — try again.');}
 }
 
 // ---- DATA LOADING ----

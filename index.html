@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.0</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.01</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -5700,21 +5700,25 @@ async function shareWineReviewComm(wineId){
 // ---- SAVE COMMUNITY RECIPE ----
 async function saveCommunityRecipe(recipeId){
   if(!currentUser){alert('Sign in to save recipes.');return;}
-  const r=_commRecipes.find(x=>x.id===recipeId);if(!r)return;
+  // Look in popular shelf AND search results
+  const r=_commRecipes.find(x=>x.id===recipeId)||_recipeSearchResults.find(x=>x.id===recipeId);
+  if(!r){console.warn('saveCommunityRecipe: recipe not found',recipeId);return;}
   try{
     const parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});
     const newId='cocktail-comm-'+Date.now();
     // Handle name collision: if a recipe with same name already exists, suffix with source
     let importName=parsed.name||r.name||'Imported Recipe';
     const nameExists=(state.cocktails||[]).some(x=>x.name===importName);
-    if(nameExists)importName=importName+' (↓ '+( r.display_name||'Community')+')';
+    if(nameExists)importName=importName+' (↓ '+(r.display_name||'Community')+')';
     const nc={...parsed,id:newId,name:importName,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name||'Community',savedFromDate:new Date().toISOString()};
     if(!Array.isArray(state.cocktails))state.cocktails=[];
     state.cocktails.push(nc);
     saveData();
-    if(typeof showSnack==='function')showSnack('Recipe saved to your bar!');
+    // Increment save_count in Supabase (best-effort, requires migration)
+    try{await sbClient.from('sc_public_recipes').update({save_count:(r.save_count||0)+1}).eq('id',recipeId);}catch(e){}
+    showSnack('✅ "'+importName+'" saved! Find it in your Recipes tab.');
     setTab('recipes');state.selectedCocktailId=newId;render();
-  }catch(e){console.warn('Save recipe',e);}
+  }catch(e){console.warn('Save recipe',e);showSnack('❌ Could not save recipe — try again.');}
 }
 
 // ---- DATA LOADING ----
@@ -5796,6 +5800,22 @@ async function commLoadWines(){
   _winesLoading=true;render();
   try{const {data}=await sbClient.from('sc_wine_reviews').select('*').order('created_at',{ascending:false}).limit(60);_commWines=data||[];}catch(e){console.warn('Wines load',e);_commWines=[];}
   _winesLoading=false;_winesLoaded=true;render();
+}
+
+// ---- SNACK TOAST ----
+function showSnack(msg,duration=3000){
+  let el=document.getElementById('snackbar');
+  if(!el){
+    el=document.createElement('div');
+    el.id='snackbar';
+    el.style.cssText='position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:99999;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.35)';
+    document.body.appendChild(el);
+  }
+  el.textContent=msg;
+  el.style.opacity='1';
+  el.style.transform='translateX(-50%) translateY(0)';
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>{el.style.opacity='0';el.style.transform='translateX(-50%) translateY(20px)';},duration);
 }
 
 // ---- UTILS ----
