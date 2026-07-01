@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.08</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.09</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1516,7 +1516,7 @@ async function shareRecipe() {
 
   const ingRows = (c.recipe || []).map(r => {
     const ing = imap[r.ingredientId];
-    const name = ing ? ing.name : (r.ingredientId || '—');
+    const name = ing ? ing.name : (r._ingDisplay || r._ingName || '—');
     const qty = r.qty || '';
     const unit = unitMap[r.unit] || r.unit || '';
     return `<li><span class="ing-name">${esc(name)}</span><span class="ing-qty">${qty}${unit ? ' ' + unit : ''}</span></li>`;
@@ -1586,7 +1586,7 @@ ${sections}
       ...(c.recipe || []).map(r => {
         const ing = imap[r.ingredientId];
         const u = unitMap[r.unit] || r.unit || '';
-        return `• ${r.qty || ''}${u ? ' ' + u : ''} ${ing ? ing.name : ''}`.trim();
+        return `• ${r.qty || ''}${u ? ' ' + u : ''} ${ing ? ing.name : (r._ingDisplay || r._ingName || '')}`.trim();
       }),
       c.garnish             ? `\nGarnish: ${c.garnish}` : '',
       c.notes               ? `\nNotes: ${c.notes}` : '',
@@ -1666,12 +1666,13 @@ function renderCocktailSheet() {
       const unitOpts = state.units.map(u=>`<option value="${u.id}"${r.unit===u.id?' selected':''}>${esc(u.abbr)}</option>`).join('');
       return `<div class="recipe-line">
         <div class="autocomplete-wrap">
-          <input id="recipeIngInput${idx}" style="margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;box-sizing:border-box;"
+          <input id="recipeIngInput${idx}"
             placeholder="Search ingredient…"
-            value="${esc(ing ? ing.name : (r.ingredientId||''))}"
+            value="${esc(ing ? ing.name : (r._ingDisplay || r._ingName || ''))}"
             oninput="filterRecipeIng(${idx},this.value)"
             onfocus="filterRecipeIng(${idx},this.value)"
-            onblur="setTimeout(()=>hideRecipeIng(${idx}),200)"/>
+            onblur="setTimeout(()=>hideRecipeIng(${idx}),200)"
+            style="margin-bottom:8px;background:var(--surface);border:1px solid ${!ing&&(r._ingDisplay||r._ingName)?'#f59e0b':'var(--border)'};border-radius:8px;padding:10px 12px;font-size:14px;width:100%;box-sizing:border-box;"/>
         </div>
         <div style="display:grid;grid-template-columns:80px 1fr auto;gap:8px;align-items:center;">
           <input type="number" step="0.25" min="0" style="padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:15px;font-family:inherit;width:100%;text-align:center;" value="${r.qty||1}" onchange="cocktailDraft.recipe[${idx}].qty=Number(this.value);renderCocktailSheet()"/>
