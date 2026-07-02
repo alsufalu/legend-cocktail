@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.09</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.11</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -4099,9 +4099,17 @@ function commPreviewRecipeMobile(recipeId){
   const mIm=Object.fromEntries(state.ingredients.map(i=>[i.id,i]));
   const ingredientRows=(parsed.recipe||[]).map((line,i)=>{
     const ing=mIm[line.ingredientId];
-    const name=ing?.name||ing?.displayName||line._ingDisplay||line._ingName||`Ingredient ${i+1}`;
+    const embeddedName=line._ingDisplay||line._ingName||'';
+    const hardCoded=!ing&&!!embeddedName;
+    const unknown=!ing&&!embeddedName;
+    const name=ing?.name||ing?.displayName||embeddedName||'⚠ Unknown ingredient';
+    const nameCell=hardCoded
+      ?`<div style="color:#d97706;font-weight:500">${esc(name)}</div><div style="font-size:10px;color:#d97706;opacity:.75;margin-top:1px">not in your bar</div>`
+      :unknown
+        ?`<div style="color:var(--ink3);font-style:italic">${esc(name)}</div>`
+        :`<div>${esc(name)}</div>`;
     return`<tr>
-      <td style="padding:8px 10px 8px 0;font-size:14px;color:var(--ink);border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(name)}</td>
+      <td style="padding:8px 10px 8px 0;font-size:14px;border-bottom:1px solid var(--surface2);vertical-align:middle">${nameCell}</td>
       <td style="padding:8px 0 8px 10px;font-size:14px;font-weight:600;color:var(--ink2);text-align:right;white-space:nowrap;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(String(line.qty||''))}${line.unit?' '+esc(line.unit):''}</td>
     </tr>`;
   }).join('');

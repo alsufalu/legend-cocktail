@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.09</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.11</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -5990,11 +5990,19 @@ function commPreviewRecipe(recipeId){
   const im2=ingMap();
   const ingredientRows=(parsed.recipe||[]).map((line,i)=>{
     const ing=im2[line.ingredientId];
-    const name=ing?.name||ing?.displayName||line._ingDisplay||line._ingName||`Ingredient ${i+1}`;
+    const embeddedName=line._ingDisplay||line._ingName||'';
+    const hardCoded=!ing&&!!embeddedName;
+    const unknown=!ing&&!embeddedName;
+    const name=ing?.name||ing?.displayName||embeddedName||'⚠ Unknown ingredient';
     const qty=line.qty||'';
     const unit=line.unit||'';
+    const nameCell=hardCoded
+      ?`<div style="color:#d97706;font-weight:500">${esc(name)}</div><div style="font-size:10px;color:#d97706;opacity:.75;margin-top:1px">not in your bar</div>`
+      :unknown
+        ?`<div style="color:var(--ink3);font-style:italic">${esc(name)}</div>`
+        :`<div>${esc(name)}</div>`;
     return`<tr>
-      <td style="padding:7px 10px 7px 0;font-size:13px;color:var(--ink);border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(name)}</td>
+      <td style="padding:7px 10px 7px 0;font-size:13px;border-bottom:1px solid var(--surface2);vertical-align:middle">${nameCell}</td>
       <td style="padding:7px 0 7px 10px;font-size:13px;font-weight:600;color:var(--ink2);text-align:right;white-space:nowrap;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(String(qty))}${unit?' '+esc(unit):''}</td>
     </tr>`;
   }).join('');
