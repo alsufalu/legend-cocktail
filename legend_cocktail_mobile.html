@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.11</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.12</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1450,7 +1450,20 @@ let recipeSearch = '';
 
 function getCocktailCards() {
   const q = recipeSearch.toLowerCase();
-  const list = state.cocktails.filter(c => !q || c.name.toLowerCase().includes(q) || (c.category||'').toLowerCase().includes(q));
+  const im = ingMap();
+  const list = state.cocktails.filter(c => {
+    if (!q) return true;
+    if ((c.name||'').toLowerCase().includes(q)) return true;
+    if ((c.category||'').toLowerCase().includes(q)) return true;
+    return (c.recipe||[]).some(r => {
+      const ing = im[r.ingredientId];
+      if (!ing) return false;
+      return (ing.name||'').toLowerCase().includes(q)
+          || (ing.brand||'').toLowerCase().includes(q)
+          || (ing.ingredientType||'').toLowerCase().includes(q)
+          || (ing.category||'').toLowerCase().includes(q);
+    });
+  });
   if (list.length === 0) return `<div class="empty"><div class="empty-icon">🍹</div><div class="empty-title">No cocktails yet</div><div class="empty-sub">Add your first recipe</div></div>`;
   return list.map(c => {
     const cost = cocktailCost(c);
@@ -1481,7 +1494,7 @@ function renderRecipes() {
       <button class="page-action" onclick="addCocktail()">+ Add</button>
     </div>
     <div class="search-wrap">
-      <input class="search-input" id="recipeSearchInput" placeholder="Search cocktails…" value="${esc(recipeSearch)}" oninput="recipeSearch=this.value;updateRecipeList()"/>
+      <input class="search-input" id="recipeSearchInput" placeholder="Search by name or ingredient…" value="${esc(recipeSearch)}" oninput="recipeSearch=this.value;updateRecipeList()"/>
     </div>
     <div class="card-list" id="recipeCardList">${getCocktailCards()}</div>
   `;
