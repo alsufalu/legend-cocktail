@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.12</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.13</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -3927,8 +3927,8 @@ async function commLoadRecipes(){
   _recipesLoading=false;_recipesLoaded=true;render();
 }
 async function commSearchRecipes(){
-  if(!_recipeSearchQuery&&!_recipeSearchCategory){_recipeSearchResults=[];_recipeSearching=false;render();return;}
-  _recipeSearching=true;render();
+  if(!_recipeSearchQuery&&!_recipeSearchCategory){_recipeSearchResults=[];_recipeSearching=false;_commUpdateResults();return;}
+  _recipeSearching=true;_commUpdateResults();
   let found=null;
   if(_recipeSearchQuery){
     // Full-text search across name + category + ingredients + notes
@@ -3956,7 +3956,47 @@ async function commSearchRecipes(){
     }catch(e){found=[];}
   }
   _recipeSearchResults=found||[];
-  _recipeSearching=false;render();
+  _recipeSearching=false;_commUpdateResults();
+}
+// Update only the results area — never touches the search input, so focus is preserved
+function _commUpdateResults(){
+  const el=document.getElementById('mCommRecipeResults');
+  if(!el){render();return;}
+  el.innerHTML=_mCommRecipeResultsHTML();
+  // sync clear button visibility
+  const clearBtn=document.getElementById('mCommClearBtn');
+  if(clearBtn)clearBtn.style.display=(_recipeSearchQuery||_recipeSearchCategory)?'inline-flex':'none';
+}
+// Just the results section HTML (no search bar)
+function _mCommRecipeResultsHTML(){
+  if(_recipeSearchQuery||_recipeSearchCategory){
+    if(_recipeSearching)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Searching…</div>';
+    if(!_recipeSearchResults.length)return`<div style="text-align:center;padding:40px 16px;color:var(--ink3)">No recipes found for "${esc(_recipeSearchQuery||_recipeSearchCategory)}".</div>`;
+    return`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">${_recipeSearchResults.length} result${_recipeSearchResults.length!==1?'s':''}</div>`+_recipeSearchResults.map(_commCard).join('');
+  }
+  if(_recipesLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading…</div>';
+  if(!_commRecipes.length)return`<div style="text-align:center;padding:40px 16px"><div style="font-size:40px;margin-bottom:10px">🍹</div><p style="color:var(--ink3)">No recipes shared yet.<br>Open a cocktail and enable "Share in Community Library"!</p><button onclick="_recipesLoaded=false;_commRecipes=[];commLoadRecipes()" style="margin-top:12px;padding:8px 20px;background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Retry</button></div>`;
+  return'<div style="font-size:13px;font-weight:700;margin-bottom:10px">⭐ Most Saved</div>'+_commRecipes.map(_commCard).join('');
+}
+function _commCard(r){
+  let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
+  const ingCount=(parsed.recipe||[]).length;
+  const photoUrl=r.photo_url||parsed.photo||'';
+  const saves=r.save_count||0;
+  return`<div onclick="commPreviewRecipeMobile('${r.id}')" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px;cursor:pointer">
+    ${photoUrl?`<img src="${esc(photoUrl)}" style="width:100%;height:160px;object-fit:cover;display:block" onerror="this.style.display='none'">`:''}
+    <div style="padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div><div style="font-size:15px;font-weight:700">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
+        <span style="font-size:10px;background:rgba(200,146,42,.1);color:#c8922a;padding:2px 8px;border-radius:99px;font-weight:700">${ingCount} ing.</span>
+      </div>
+      ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);margin-bottom:8px;line-height:1.5">${esc(parsed.notes.slice(0,80))}${parsed.notes.length>80?'…':''}</div>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}${saves?' · 💾 '+saves:''}</span>
+        <span style="font-size:12px;color:#0070f2;font-weight:600">View →</span>
+      </div>
+    </div>
+  </div>`;
 }
 function commSetRecipeQuery(val){
   _recipeSearchQuery=val;
@@ -4058,48 +4098,20 @@ function _mCommFeed(){
 
 function _mCommRecipes(){
   const cats=['Cocktail','Mocktail','Shot','Punch','Other'];
+  // Search bar is rendered once; results are updated in-place via _commUpdateResults()
+  // so the input is never destroyed while the user is typing
   const searchBar=`<div style="margin-bottom:10px">
     <div style="display:flex;gap:8px;margin-bottom:8px">
-      <input type="search" placeholder="Search recipes…" value="${esc(_recipeSearchQuery)}"
+      <input type="search" placeholder="Search by name or ingredient…" value="${esc(_recipeSearchQuery)}"
         oninput="commSetRecipeQuery(this.value)"
         style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:20px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--ink);outline:none">
-      ${_recipeSearchQuery||_recipeSearchCategory?`<button onclick="commClearRecipeSearch()" style="padding:6px 12px;background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">✕</button>`:''}
+      <button id="mCommClearBtn" onclick="commClearRecipeSearch()" style="padding:6px 12px;background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3);display:${_recipeSearchQuery||_recipeSearchCategory?'inline-flex':'none'}">✕</button>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       ${cats.map(c=>`<button onclick="commSetRecipeCat('${c}')" style="padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${_recipeSearchCategory===c?'#c8922a':'var(--border)'};background:${_recipeSearchCategory===c?'#c8922a':'none'};color:${_recipeSearchCategory===c?'#fff':'var(--ink3)'}">${c}</button>`).join('')}
     </div>
   </div>`;
-
-  function _card(r){
-    let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
-    const ingCount=(parsed.recipe||[]).length;
-    const photoUrl=r.photo_url||parsed.photo||'';
-    const saves=r.save_count||0;
-    return`<div onclick="commPreviewRecipeMobile('${r.id}')" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px;cursor:pointer">
-      ${photoUrl?`<img src="${esc(photoUrl)}" style="width:100%;height:160px;object-fit:cover;display:block" onerror="this.style.display='none'">`:''}
-      <div style="padding:14px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-          <div><div style="font-size:15px;font-weight:700">${esc(r.name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(r.category||'')}${r.glass?' · '+esc(r.glass):''}</div></div>
-          <span style="font-size:10px;background:rgba(200,146,42,.1);color:#c8922a;padding:2px 8px;border-radius:99px;font-weight:700">${ingCount} ing.</span>
-        </div>
-        ${parsed.notes?`<div style="font-size:12px;color:var(--ink2);margin-bottom:8px;line-height:1.5">${esc(parsed.notes.slice(0,80))}${parsed.notes.length>80?'…':''}</div>`:''}
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:11px;color:var(--ink3)">by ${esc(r.display_name||'Member')}${saves?' · 💾 '+saves:''}</span>
-          <span style="font-size:12px;color:#0070f2;font-weight:600">View →</span>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  if(_recipeSearchQuery||_recipeSearchCategory){
-    if(_recipeSearching)return searchBar+'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Searching…</div>';
-    if(!_recipeSearchResults.length)return searchBar+`<div style="text-align:center;padding:40px 16px;color:var(--ink3)">No recipes found for "${esc(_recipeSearchQuery||_recipeSearchCategory)}".</div>`;
-    return searchBar+`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">${_recipeSearchResults.length} result${_recipeSearchResults.length!==1?'s':''}</div>`+_recipeSearchResults.map(_card).join('');
-  }
-
-  if(_recipesLoading)return searchBar+'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading…</div>';
-  if(!_commRecipes.length)return searchBar+`<div style="text-align:center;padding:40px 16px"><div style="font-size:40px;margin-bottom:10px">🍹</div><p style="color:var(--ink3)">No recipes shared yet.<br>Open a cocktail and enable "Share in Community Library"!</p><button onclick="_recipesLoaded=false;_commRecipes=[];commLoadRecipes()" style="margin-top:12px;padding:8px 20px;background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Retry</button></div>`;
-  return searchBar+'<div style="font-size:13px;font-weight:700;margin-bottom:10px">⭐ Most Saved</div>'+_commRecipes.map(_card).join('');
+  return searchBar+`<div id="mCommRecipeResults">${_mCommRecipeResultsHTML()}</div>`;
 }
 
 function commPreviewRecipeMobile(recipeId){
