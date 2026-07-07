@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.15</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.16</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -2127,7 +2127,10 @@ function renderRecipes(q){
     <button class="rexp-btn" onclick="exportSelectedRecipes()" ${recipeExportIds.size===0?'disabled':''} style="background:${recipeExportIds.size>0?'#c8922a':'#555'};color:white;border:none;padding:7px 16px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">📄 Export PDF</button>
   </div>` : '';
 
-  const rows = (c.recipe||[]).map((r,idx)=>{
+  const displayRecipe=(c.recipe||[]).map((r,origIdx)=>({...r,_origIdx:origIdx}));
+  if(sortOrder==='abv_asc'){displayRecipe.sort((a,b)=>Number(im[a.ingredientId]?.abv||0)-Number(im[b.ingredientId]?.abv||0));}
+  else if(sortOrder==='abv_desc'){displayRecipe.sort((a,b)=>Number(im[b.ingredientId]?.abv||0)-Number(im[a.ingredientId]?.abv||0));}
+  const rows = displayRecipe.map((r)=>{const idx=r._origIdx;
     const ing=im[r.ingredientId];
     const embeddedName=r._ingDisplay||r._ingName||'';
     const selectedLabel = ing
