@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.13</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.14</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -492,7 +492,9 @@ let state = {
   defaultLiquidUnit: 'oz',
   lastSaved: '',
   storageLocations: [],
-  wines: []
+  wines: [],
+  recipeSortOrder: 'natural',
+  unitSystem: 'oz'
 };
 
 // ===== CLOUD SYNC =====
@@ -695,7 +697,7 @@ async function saveMyShareKey() {
 async function signOut() {
   await sbClient.auth.signOut();
   currentUser = null;
-  state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],savedShoppingLists:[],activeShoppingListId:'',units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:''};
+  state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],savedShoppingLists:[],activeShoppingListId:'',units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:'',recipeSortOrder:'natural',unitSystem:'oz'};
   document.getElementById('app').classList.add('hidden');
   document.getElementById('loginOverlay').classList.remove('hidden');
   document.getElementById('accountSheet').classList.add('hidden');
@@ -711,6 +713,24 @@ function dateMaskInput(e){ const el=e.target||e; let v=el.value.replace(/\D/g,''
 function fmtDate(v){ if(!v)return ''; const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/); if(m)return m[2]+'/'+m[3]+'/'+m[1]; return v; }
 function parseDateInput(v){ if(!v)return ''; const m=String(v).match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(m)return m[3]+'-'+m[1]+'-'+m[2]; return v; }
 function ingMap() { return Object.fromEntries(state.ingredients.map(i => [i.id, i])); }
+const OZ_TO_ML=29.5735;
+function dispQty(qty,unit){
+  if(qty===''||qty===null||qty===undefined)return qty;
+  const q=parseFloat(qty); if(isNaN(q))return qty;
+  const u=String(unit||'').toLowerCase().trim();
+  const sys=state.unitSystem||'oz';
+  if(sys==='ml'&&(u==='oz'||u==='fl oz'))return Math.round(q*OZ_TO_ML*10)/10;
+  if(sys==='oz'&&u==='ml')return Math.round(q/OZ_TO_ML*100)/100;
+  return qty;
+}
+function dispUnit(unit){
+  if(!unit)return '';
+  const u=String(unit).toLowerCase().trim();
+  const sys=state.unitSystem||'oz';
+  if(sys==='ml'&&(u==='oz'||u==='fl oz'))return 'ml';
+  if(sys==='oz'&&u==='ml')return 'oz';
+  return unit;
+}
 function unitMap() { return Object.fromEntries(state.units.map(u => [u.id, u])); }
 function uid() { return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2); }
 function costPerUnit(i) { return Number(i.purchaseCost ?? i.packageCost ?? 0) / (Number(i.yieldQty ?? i.packageSize ?? 1) || 1); }
@@ -1451,7 +1471,7 @@ let recipeSearch = '';
 function getCocktailCards() {
   const q = recipeSearch.toLowerCase();
   const im = ingMap();
-  const list = state.cocktails.filter(c => {
+  let list = state.cocktails.filter(c => {
     if (!q) return true;
     if ((c.name||'').toLowerCase().includes(q)) return true;
     if ((c.category||'').toLowerCase().includes(q)) return true;
@@ -1464,6 +1484,18 @@ function getCocktailCards() {
           || (ing.category||'').toLowerCase().includes(q);
     });
   });
+  const sortOrder = state.recipeSortOrder || 'natural';
+  if (sortOrder === 'abv_asc') {
+    list = [...list].sort((a,b) => {
+      const aA=cocktailAbv(a); const bA=cocktailAbv(b);
+      return (aA?parseFloat(aA.postAbv):0)-(bA?parseFloat(bA.postAbv):0);
+    });
+  } else if (sortOrder === 'abv_desc') {
+    list = [...list].sort((a,b) => {
+      const aA=cocktailAbv(a); const bA=cocktailAbv(b);
+      return (bA?parseFloat(bA.postAbv):0)-(aA?parseFloat(aA.postAbv):0);
+    });
+  }
   if (list.length === 0) return `<div class="empty"><div class="empty-icon">🍹</div><div class="empty-title">No cocktails yet</div><div class="empty-sub">Add your first recipe</div></div>`;
   return list.map(c => {
     const cost = cocktailCost(c);
@@ -1530,8 +1562,9 @@ async function shareRecipe() {
   const ingRows = (c.recipe || []).map(r => {
     const ing = imap[r.ingredientId];
     const name = ing ? ing.name : (r._ingDisplay || r._ingName || '—');
-    const qty = r.qty || '';
-    const unit = unitMap[r.unit] || r.unit || '';
+    const rawUnit = unitMap[r.unit] || r.unit || '';
+    const qty = dispQty(r.qty || '', rawUnit);
+    const unit = dispUnit(rawUnit);
     return `<li><span class="ing-name">${esc(name)}</span><span class="ing-qty">${qty}${unit ? ' ' + unit : ''}</span></li>`;
   }).join('');
 
@@ -1598,8 +1631,9 @@ ${sections}
       'INGREDIENTS',
       ...(c.recipe || []).map(r => {
         const ing = imap[r.ingredientId];
-        const u = unitMap[r.unit] || r.unit || '';
-        return `• ${r.qty || ''}${u ? ' ' + u : ''} ${ing ? ing.name : (r._ingDisplay || r._ingName || '')}`.trim();
+        const rawU = unitMap[r.unit] || r.unit || '';
+        const dq = dispQty(r.qty || '', rawU); const du = dispUnit(rawU);
+        return `• ${dq}${du ? ' ' + du : ''} ${ing ? ing.name : (r._ingDisplay || r._ingName || '')}`.trim();
       }),
       c.garnish             ? `\nGarnish: ${c.garnish}` : '',
       c.notes               ? `\nNotes: ${c.notes}` : '',
@@ -2718,8 +2752,27 @@ function renderBatching() {
 
 // ===== SETTINGS TAB =====
 function renderSettings() {
+  const sortOpts=[['natural','Natural Order','Order as added to recipe'],['abv_asc','ABV Ascending ↑','Low to high alcohol'],['abv_desc','ABV Descending ↓','High to low alcohol']];
+  const unitOpts=[['oz','Ounces (oz)','US standard — fl oz'],['ml','Milliliters (ml)','Metric — used globally']];
   return `
     <div class="page-header"><div class="page-title">Settings</div></div>
+    <div style="padding:0 16px 16px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Recipe List Sort Order</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px">
+        ${sortOpts.map(([val,label,sub])=>`<label style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer">
+          <input type="radio" name="mRecipeSortOrder" value="${val}" ${(state.recipeSortOrder||'natural')===val?'checked':''} onchange="state.recipeSortOrder=this.value;saveData();render()" style="accent-color:#c8922a;width:18px;height:18px;flex-shrink:0">
+          <div><div style="font-size:14px;font-weight:600">${label}</div><div style="font-size:12px;color:var(--ink3)">${sub}</div></div>
+        </label>`).join('')}
+      </div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Volume Display Units</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px">
+        ${unitOpts.map(([val,label,sub])=>`<label style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer">
+          <input type="radio" name="mUnitSystem" value="${val}" ${(state.unitSystem||'oz')===val?'checked':''} onchange="state.unitSystem=this.value;saveData();render()" style="accent-color:#c8922a;width:18px;height:18px;flex-shrink:0">
+          <div><div style="font-size:14px;font-weight:600">${label}</div><div style="font-size:12px;color:var(--ink3)">${sub}</div></div>
+        </label>`).join('')}
+        <div style="padding:10px 16px;font-size:11px;color:var(--ink3)">Affects exports, share output, and community previews. Stored values are not changed.</div>
+      </div>
+    </div>
     <div class="card-list">
       <div class="card" onclick="exportBackup()">
         <div class="card-body"><div class="card-name">Export Backup</div><div class="card-sub">Download all data as JSON</div></div>
@@ -4128,6 +4181,7 @@ function commPreviewRecipeMobile(recipeId){
     const hardCoded=!ing&&!!embeddedName;
     const unknown=!ing&&!embeddedName;
     const name=ing?.name||ing?.displayName||embeddedName||'⚠ Unknown ingredient';
+    const dQty=dispQty(line.qty||'',line.unit||''); const dUnit=dispUnit(line.unit||'');
     const nameCell=hardCoded
       ?`<div style="color:#d97706;font-weight:500">${esc(name)}</div><div style="font-size:10px;color:#d97706;opacity:.75;margin-top:1px">not in your bar</div>`
       :unknown
@@ -4135,7 +4189,7 @@ function commPreviewRecipeMobile(recipeId){
         :`<div>${esc(name)}</div>`;
     return`<tr>
       <td style="padding:8px 10px 8px 0;font-size:14px;border-bottom:1px solid var(--surface2);vertical-align:middle">${nameCell}</td>
-      <td style="padding:8px 0 8px 10px;font-size:14px;font-weight:600;color:var(--ink2);text-align:right;white-space:nowrap;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(String(line.qty||''))}${line.unit?' '+esc(line.unit):''}</td>
+      <td style="padding:8px 0 8px 10px;font-size:14px;font-weight:600;color:var(--ink2);text-align:right;white-space:nowrap;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(String(dQty))}${dUnit?' '+esc(dUnit):''}</td>
     </tr>`;
   }).join('');
   let modal=document.getElementById('mCommPreviewModal');
