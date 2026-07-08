@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.28</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.29</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -618,6 +618,10 @@ document.addEventListener('keydown', e => {
 function onSignedIn() {
   document.getElementById('loginOverlay').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  // Reset user-data so shared/anonymous localStorage doesn't bleed into this session
+  state.ingredients=[];state.cocktails=[];state.menu=[];state.wines=[];
+  state.pourLogs=[];state.storageLocations=[];state.savedShoppingLists=[];state.savedMenus=[];
+  state.lastSaved=null;state.profile=null;
   const saved = localStorage.getItem(STORAGE_KEY + '_' + currentUser.id);
   if (saved) { try { const p = JSON.parse(saved); state = {...state, ...p, units: p.units || defaultUnits}; } catch(e) {} }
   initApp();
