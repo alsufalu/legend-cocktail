@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.31</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.32</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -630,7 +630,10 @@ async function submitAuth() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !document.getElementById('loginOverlay').classList.contains('hidden')) submitAuth();
 });
+let _onSignedInRunning = false;
 function onSignedIn() {
+  if (_onSignedInRunning) return;
+  _onSignedInRunning = true;
   document.getElementById('loginOverlay').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   // Reset user-data so shared/anonymous localStorage doesn't bleed into this session
@@ -715,6 +718,7 @@ async function saveMyShareKey() {
 }
 async function signOut() {
   await sbClient.auth.signOut();
+  _onSignedInRunning = false;
   currentUser = null;
   state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],savedShoppingLists:[],activeShoppingListId:'',units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:'',recipeSortOrder:'natural',unitSystem:'oz'};
   document.getElementById('app').classList.add('hidden');
