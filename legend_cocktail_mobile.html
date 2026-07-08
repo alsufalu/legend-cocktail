@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.18</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.19</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -3852,19 +3852,27 @@ async function submitPourLogMobile(){
   const entry={id:'pour_'+Date.now(),type:_pourDraft.type,name:_pourDraft.name.trim(),note:_pourDraft.note.trim(),rating:_pourDraft.rating,venue:_pourDraft.venue.trim(),isPublic:_pourDraft.isPublic,photoUrl:_pourDraft.photoUrl||'',ts:new Date().toISOString()};
   state.pourLogs.unshift(entry);
   saveData();
+  // Optimistic update: add to feed immediately so it shows without waiting for DB
+  if(entry.isPublic&&currentUser){
+    const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
+    _commFeed=[{_kind:'pour',display_name:dn,item_type:entry.type,item_name:entry.name,rating:entry.rating||null,venue:entry.venue||'',note:entry.note||'',photo_url:entry.photoUrl||'',created_at:entry.ts},..._commFeed];
+    _feedLoaded=true;
+  }
   closePourLogMobile();
   checkNewBadges();
   showSnack('🍹 Logged: '+entry.name);
-  // Push to Supabase, then force feed to reload so the new pour appears
+  if(currentTab==='community')render();
+  // Push to Supabase in background, then do a silent refresh to confirm
   if(currentUser&&entry.isPublic){
     try{
       const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
-      await sbClient.from('sc_pour_logs').insert({user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true,photo_url:entry.photoUrl||null});
-    }catch(e){console.warn('Pour log sync',e);}
+      const{error}=await sbClient.from('sc_pour_logs').insert({user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true,photo_url:entry.photoUrl||null});
+      if(error)console.warn('Pour log insert error:',error.message,error.code);
+    }catch(e){console.warn('Pour log sync exception:',e?.message||e);}
+    // Silently refresh feed in background so timestamps etc. come from server
+    _feedLoaded=false;
+    commLoadFeed();
   }
-  // Always reset feed so the next render re-fetches (even if insert failed, feed stays visible)
-  _feedLoaded=false;
-  if(currentTab==='community')render();
 }
 
 // ---- RECIPE SHARING (mobile) ----
