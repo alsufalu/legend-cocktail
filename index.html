@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.22</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.24</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -2009,6 +2009,16 @@ function selectRecipeIngredientForCocktail(cocktailId,idx,ingredientId){
   updateRecipeLineForCocktail(cocktailId,idx,'ingredientId',ingredientId);
 }
 
+// Handles qty input when displayed in the user's preferred unit system (oz↔ml)
+function updateRecipeQtyConverted(cocktailId,idx,displayVal,unitId){
+  const sys=state.unitSystem||'oz';
+  const uAbbr=(unitAbbr(unitId)||unitId||'').toLowerCase().trim();
+  let q=parseFloat(displayVal)||0;
+  if(sys==='ml'&&(uAbbr==='oz'||uAbbr==='fl oz')){q=Math.round(q/OZ_TO_ML*10000)/10000;}
+  else if(sys==='oz'&&uAbbr==='ml'){q=Math.round(q*OZ_TO_ML*10000)/10000;}
+  updateRecipeLineForCocktail(cocktailId,idx,'qty',q);
+}
+
 function renderRecipes(q){
   const im = ingMap();
   const filterIngredient = cocktailIngredientFilterId ? im[cocktailIngredientFilterId] : null;
@@ -2112,23 +2122,24 @@ function renderRecipes(q){
   const rows = displayRecipe.map((r)=>{const idx=r._origIdx;
     const ing=im[r.ingredientId];
     const embeddedName=r._ingDisplay||r._ingName||'';
-    const selectedLabel = ing
-      ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${esc(ing.name)}</span>`
-      : embeddedName
-        ? `<span style="font-size:11px;font-weight:600;color:#d97706">${esc(embeddedName)}</span><span style="font-size:10px;color:#d97706;margin-left:4px">⚠ not in your bar</span>`
-        : `<span style="font-size:11px;font-style:italic;color:var(--ink3)">No ingredient selected</span>`;
+    const dispName=ing?.name||embeddedName||'';
+    const selectedLabel = dispName
+      ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${esc(dispName)}</span>`
+      : `<span style="font-size:11px;font-style:italic;color:var(--ink3)">No ingredient selected</span>`;
     const inputVal=ing?ing.name:embeddedName;
+    const rUnitAbbr=unitAbbr(r.unit)||r.unit||'';
+    const dispQtyVal=dispQty(r.qty,rUnitAbbr);
     return `<div class="row recipeRow" style="padding:7px 10px">
       <div class="ingredientSearchWrap">
         <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
           <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3)">Selected:</span>
           ${selectedLabel}
         </div>
-        <input id="ingredientSearch_${idx}" data-cocktail-id="${c.id}" class="input" style="padding:5px 8px;font-size:12px${embeddedName&&!ing?';border-color:#f59e0b':''}" value="${esc(inputVal)}" placeholder="Search ingredient…" oninput="showIngredientResults(${idx},this.value)" onfocus="showIngredientResults(${idx},this.value)" onblur="hideIngredientResultsLater(${idx})">
+        <input id="ingredientSearch_${idx}" data-cocktail-id="${c.id}" class="input" style="padding:5px 8px;font-size:12px" value="${esc(inputVal)}" placeholder="Search ingredient…" oninput="showIngredientResults(${idx},this.value)" onfocus="showIngredientResults(${idx},this.value)" onblur="hideIngredientResultsLater(${idx})">
         <div id="ingredientResults_${idx}" class="ingredientResults" style="display:none"></div>
       </div>
-      <div><input class="input" style="padding:5px 8px;font-size:12px" type="number" step="0.01" value="${r.qty}" onchange="updateRecipeLineForCocktail('${c.id}',${idx},'qty',this.value)"></div>
-      <div><select style="padding:5px 8px;font-size:12px" onchange="updateRecipeLineForCocktail('${c.id}',${idx},'unit',this.value)">${state.units.map(u=>`<option value="${u.id}" ${u.id===(r.unit||ing?.recipeUnit)?'selected':''}>${esc(u.abbr)}</option>`).join('')}</select></div>
+      <div><input class="input" style="padding:5px 8px;font-size:12px" type="number" step="0.01" value="${esc(String(dispQtyVal))}" onchange="updateRecipeQtyConverted('${c.id}',${idx},this.value,'${r.unit}')"></div>
+      <div><select style="padding:5px 8px;font-size:12px" onchange="updateRecipeLineForCocktail('${c.id}',${idx},'unit',this.value)">${state.units.map(u=>`<option value="${u.id}" ${u.id===(r.unit||ing?.recipeUnit)?'selected':''}>${esc(dispUnit(u.abbr)||u.abbr)}</option>`).join('')}</select></div>
       <div style="display:flex;align-items:center"><span class="lineCost">${money(lineCost(r))}</span></div>
       <div style="display:flex;align-items:center"><button class="delete" onclick="deleteRecipe(${idx})">✕</button></div>
     </div>`;
@@ -2159,57 +2170,59 @@ function renderRecipes(q){
           ${(()=>{const abv=cocktailAbv(c);if(!abv)return '';if(!abv.hasAlcohol)return '<span style="font-size:12px;color:var(--ink3);background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 10px">Non-Alcoholic</span>';return '<span style="font-size:12px;font-weight:700;color:var(--teal);background:#f0fdfb;border:1px solid #b2e4df;border-radius:999px;padding:3px 10px" title="Pre-dilution: '+abv.preAbv+'% · Post-dilution ('+c.build+'): '+abv.postAbv+'%">~'+abv.postAbv+'% ABV</span>';})()}
           <div class="rightCost">${money(cocktailCost(c))}</div>
         </div></div>
-        ${c.photo?`<div style="margin-bottom:10px;border-radius:var(--radius);overflow:hidden;background:var(--surface2);border:1px solid var(--border)"><img src="${esc(c.photo)}" style="width:100%;max-height:280px;object-fit:contain;display:block"></div>`:''}
         <div style="border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);padding:10px 12px;margin-bottom:10px">
           <div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-bottom:8px">Cocktail Details</div>
-          <div class="compactForm" style="margin-bottom:0">
-            <div class="compactRow">
-              <span class="cLabel">Name</span>
-              <input class="input" value="${esc(c.name)}" onchange="updateCocktail('name',this.value)" style="flex:2">
-              <span class="cLabel narrow">Category</span>
-              <input class="input" value="${esc(c.category||'')}" onchange="updateCocktail('category',this.value)" style="flex:1">
-            </div>
-            <div class="compactRow">
-              <span class="cLabel">Glass</span>
-              <input class="input" value="${esc(c.glass||'')}" onchange="updateCocktail('glass',this.value)">
-              <span class="cLabel narrow">Served</span>
-              <input class="input" value="${esc(c.served||'')}" onchange="updateCocktail('served',this.value)">
-              <span class="cLabel narrow">Build</span>
-              <input class="input" value="${esc(c.build||'')}" onchange="updateCocktail('build',this.value)">
-            </div>
-            <div class="compactRow">
-              <span class="cLabel">Garnish</span>
-              <input class="input" value="${esc(c.garnish||'')}" onchange="updateCocktail('garnish',this.value)">
-            </div>
-            <div class="compactRow">
-              <span class="cLabel">Notes</span>
-              <input class="input" value="${esc(c.notes||'')}" onchange="updateCocktail('notes',this.value)" placeholder="Menu description…">
-            </div>
-            <div class="compactRow">
-              <span class="cLabel">Instructions</span>
-              <input class="input" value="${esc(c.specialInstructions||'')}" onchange="updateCocktail('specialInstructions',this.value)" placeholder="Build steps…">
-              <span class="cLabel narrow">Date</span>
-              <input class="input" placeholder="MM/DD/YYYY" value="${esc(c.dateCreated||'')}" oninput="dateMaskInput(this)" onchange="updateCocktail('dateCreated',this.value)" style="flex:0.5">
-            </div>
-            <div class="compactRow" style="background:${c.isPublic?'rgba(200,146,42,.06)':'transparent'};border-radius:6px;padding:4px 6px">
-              <span class="cLabel">Community</span>
-              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1">
-                <input type="checkbox" ${c.isPublic?'checked':''} onchange="toggleRecipePublic('${c.id}')" style="accent-color:var(--amber);width:14px;height:14px">
-                <span style="font-size:12px;font-weight:500">Share in Community Library</span>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="flex-shrink:0;width:140px;display:flex;flex-direction:column;gap:5px">
+              <div style="width:140px;height:140px;background:#111;border-radius:8px;overflow:hidden;border:1px solid var(--border);display:flex;align-items:center;justify-content:center">
+                ${c.photo
+                  ?`<img src="${esc(c.photo)}" style="width:100%;height:100%;object-fit:contain;display:block">`
+                  :`<span style="font-size:32px;opacity:.3">📷</span>`}
+              </div>
+              <label style="padding:5px 8px;border:1px dashed var(--border);border-radius:7px;background:var(--surface);font-size:11px;font-weight:600;cursor:pointer;text-align:center;color:var(--ink2)">
+                📷 ${c.photo?'Change':'Add Photo'}
+                <input type="file" accept="image/*" style="display:none" onchange="handleCocktailPhoto('${c.id}',this.files[0])">
               </label>
-              ${c.isPublic?`<span style="font-size:10px;background:rgba(200,146,42,.15);color:var(--amber);padding:2px 10px;border-radius:99px;font-weight:700;white-space:nowrap">🌐 Public</span>`:''}
-              ${c.savedFromCommunity?`<span style="font-size:10px;color:#0070f2;background:rgba(0,112,242,.08);border:1px solid rgba(0,112,242,.2);border-radius:4px;padding:1px 7px;margin-left:4px;font-weight:600">↓ Imported from ${esc(c.savedFromUser||'community')}${c.savedFromDate?' · '+new Date(c.savedFromDate).toLocaleDateString():''}</span>`:''}
+              ${c.photo?`<button onclick="(()=>{const x=state.cocktails.find(x=>x.id==='${c.id}');if(x){x.photo='';saveData();render();}})()" style="padding:5px;border:1px solid var(--border);border-radius:7px;background:none;color:#dc2626;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">✕ Remove</button>`:''}
             </div>
-            <div class="compactRow" style="align-items:flex-start;gap:10px;padding:6px 0">
-              <span class="cLabel">Photo</span>
-              <div style="flex:1">
-                ${c.photo?`<img src="${esc(c.photo)}" style="width:100%;max-height:160px;object-fit:contain;background:var(--surface2);border-radius:8px;margin-bottom:8px;display:block">`:''}
-                <div style="display:flex;gap:8px;align-items:center">
-                  <label style="flex:1;padding:8px 12px;border:1px dashed var(--border);border-radius:8px;background:var(--surface2);font-size:12px;font-weight:600;cursor:pointer;text-align:center;color:var(--ink2)">
-                    📷 ${c.photo?'Change Photo':'Add Photo'}
-                    <input type="file" accept="image/*" style="display:none" onchange="handleCocktailPhoto('${c.id}',this.files[0])">
+            <div style="flex:1;min-width:0">
+              <div class="compactForm" style="margin-bottom:0">
+                <div class="compactRow">
+                  <span class="cLabel">Name</span>
+                  <input class="input" value="${esc(c.name)}" onchange="updateCocktail('name',this.value)" style="flex:2">
+                  <span class="cLabel narrow">Category</span>
+                  <input class="input" value="${esc(c.category||'')}" onchange="updateCocktail('category',this.value)" style="flex:1">
+                </div>
+                <div class="compactRow">
+                  <span class="cLabel">Glass</span>
+                  <input class="input" value="${esc(c.glass||'')}" onchange="updateCocktail('glass',this.value)">
+                  <span class="cLabel narrow">Served</span>
+                  <input class="input" value="${esc(c.served||'')}" onchange="updateCocktail('served',this.value)">
+                  <span class="cLabel narrow">Build</span>
+                  <input class="input" value="${esc(c.build||'')}" onchange="updateCocktail('build',this.value)">
+                </div>
+                <div class="compactRow">
+                  <span class="cLabel">Garnish</span>
+                  <input class="input" value="${esc(c.garnish||'')}" onchange="updateCocktail('garnish',this.value)">
+                </div>
+                <div class="compactRow">
+                  <span class="cLabel">Notes</span>
+                  <input class="input" value="${esc(c.notes||'')}" onchange="updateCocktail('notes',this.value)" placeholder="Menu description…">
+                </div>
+                <div class="compactRow">
+                  <span class="cLabel">Instructions</span>
+                  <input class="input" value="${esc(c.specialInstructions||'')}" onchange="updateCocktail('specialInstructions',this.value)" placeholder="Build steps…">
+                  <span class="cLabel narrow">Date</span>
+                  <input class="input" placeholder="MM/DD/YYYY" value="${esc(c.dateCreated||'')}" oninput="dateMaskInput(this)" onchange="updateCocktail('dateCreated',this.value)" style="flex:0.5">
+                </div>
+                <div class="compactRow" style="background:${c.isPublic?'rgba(200,146,42,.06)':'transparent'};border-radius:6px;padding:4px 6px">
+                  <span class="cLabel">Community</span>
+                  <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1">
+                    <input type="checkbox" ${c.isPublic?'checked':''} onchange="toggleRecipePublic('${c.id}')" style="accent-color:var(--amber);width:14px;height:14px">
+                    <span style="font-size:12px;font-weight:500">Share in Community Library</span>
                   </label>
-                  ${c.photo?`<button onclick="(()=>{const x=state.cocktails.find(x=>x.id==='${c.id}');if(x){x.photo='';saveData();render();}})()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:none;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">✕ Remove</button>`:''}
+                  ${c.isPublic?`<span style="font-size:10px;background:rgba(200,146,42,.15);color:var(--amber);padding:2px 10px;border-radius:99px;font-weight:700;white-space:nowrap">🌐 Public</span>`:''}
+                  ${c.savedFromCommunity?`<span style="font-size:10px;color:#0070f2;background:rgba(0,112,242,.08);border:1px solid rgba(0,112,242,.2);border-radius:4px;padding:1px 7px;margin-left:4px;font-weight:600">↓ Imported from ${esc(c.savedFromUser||'community')}${c.savedFromDate?' · '+new Date(c.savedFromDate).toLocaleDateString():''}</span>`:''}
                 </div>
               </div>
             </div>
@@ -5566,7 +5579,31 @@ let _commFeed=[],_commRecipes=[],_commWines=[];
 let _feedLoading=false,_recipesLoading=false,_winesLoading=false;
 let _feedLoaded=false,_recipesLoaded=false,_winesLoaded=false;
 let _commRecipesLimit=10; // 0 = all
+let _enrichDone=false; // set true after re-publishing public recipes with ingredient names
 function commSetRecipesLimit(val){_commRecipesLimit=val==='all'?0:Number(val);_commRecipes=[];_recipesLoaded=false;commLoadRecipes();}
+
+// Silently re-publishes all public cocktails with ingredient names embedded, so viewers always see names
+async function enrichPublicRecipes(){
+  if(!currentUser||_enrichDone)return;
+  _enrichDone=true;
+  const im=ingMap();
+  const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
+  const publicCocktails=(state.cocktails||[]).filter(c=>c.isPublic);
+  for(const c of publicCocktails){
+    const enrichedRecipe=(c.recipe||[]).map(line=>{
+      const ing=im[line.ingredientId];
+      return{...line,_ingDisplay:ing?.displayName||ing?.name||line._ingDisplay||'',_ingName:ing?.name||line._ingName||''};
+    });
+    const sharedData={...c,recipe:enrichedRecipe};
+    try{
+      await sbClient.from('sc_public_recipes').upsert({
+        id:`${currentUser.id}_${c.id}`,user_id:currentUser.id,display_name:dn,
+        cocktail_id:c.id,cocktail_data:sharedData,name:c.name,category:c.category||'',
+        glass:c.glass||'',garnish:c.garnish||''
+      },{onConflict:'id'});
+    }catch(e){console.warn('enrichPublicRecipes:',c.name,e);}
+  }
+}
 // Recipe search state
 let _recipeSearchQuery='',_recipeSearchCategory='',_recipeSearchResults=[],_recipeSearching=false,_recipeSearchTimer=null;
 
@@ -5777,16 +5814,18 @@ async function saveCommunityRecipe(recipeId){
     const im=ingMap();
     const resolvedRecipe=(parsed.recipe||[]).map(line=>{
       if(im[line.ingredientId])return line; // exact match in this user's bar
-      const searchName=(line._ingDisplay||line._ingName||'').toLowerCase().trim();
+      const embName=line._ingDisplay||line._ingName||'';
+      const searchName=embName.toLowerCase().trim();
       if(searchName){
         const match=state.ingredients.find(i=>
           (i.displayName||'').toLowerCase().trim()===searchName||
           (i.name||'').toLowerCase().trim()===searchName
         );
-        if(match)return{...line,ingredientId:match.id}; // matched by name
+        if(match)return{...line,ingredientId:match.id,_ingName:match.name,_ingDisplay:match.displayName||match.name}; // matched by name
       }
-      // No match — keep embedded name as hint, clear invalid ID so cost shows $0.00
-      return{...line,ingredientId:'',_ingUnmatched:true};
+      // No local match — preserve the embedded name so the editor can display it; clear invalid ID so cost shows $0.00
+      const fallback=embName||'Unknown ingredient';
+      return{...line,ingredientId:'',_ingName:fallback,_ingDisplay:fallback,_ingUnmatched:true};
     });
     const nc={...parsed,id:newId,name:importName,recipe:resolvedRecipe,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name||'Community',savedFromDate:new Date().toISOString()};
     if(!Array.isArray(state.cocktails))state.cocktails=[];
@@ -5803,6 +5842,8 @@ async function saveCommunityRecipe(recipeId){
 async function commLoadFeed(){
   if(!currentUser)return;
   _feedLoading=true;render();
+  // Background: re-publish public recipes with ingredient names embedded (runs once per session)
+  enrichPublicRecipes();
   try{
     const {data:pours}=await sbClient.from('sc_pour_logs').select('*').eq('is_public',true).order('created_at',{ascending:false}).limit(25);
     const {data:recipes}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(10);
@@ -5964,11 +6005,15 @@ function _commRenderFeed(){
           <div style="font-size:13px"><span style="font-weight:700">${esc(item.display_name||'Member')}</span> <span style="color:var(--ink3)">logged</span> ${icon} <span style="font-weight:600">${esc(item.item_name)}</span>${stars?` <span style="color:var(--amber)">${stars}</span>`:''} <span style="font-size:11px;color:var(--ink3)">· ${meta}</span></div>
           ${item.note?`<div style="font-size:11px;color:var(--ink2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic">"${esc(item.note.length>100?item.note.slice(0,100)+'…':item.note)}"</div>`:''}
         </div>
+        ${item.photo_url?`<img src="${esc(item.photo_url)}" style="width:52px;height:52px;border-radius:7px;object-fit:contain;background:#111;border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'">`:''}
       </div>`;
     }else{
+      let rParsed={};try{rParsed=typeof item.cocktail_data==='string'?JSON.parse(item.cocktail_data):(item.cocktail_data||{});}catch(e){}
+      const rPhoto=item.photo_url||rParsed.photo||'';
       return`<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border)">
         <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0">${(item.display_name||'?')[0].toUpperCase()}</div>
         <div style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-weight:700">${esc(item.display_name||'Member')}</span> <span style="color:var(--ink3)">shared a recipe</span> 🍹 <span style="font-weight:600">${esc(item.name)}</span>${item.category?` <span style="font-size:11px;color:var(--ink3)">· ${esc(item.category)}</span>`:''} <span style="font-size:11px;color:var(--ink3)">· ${_timeAgo(item.created_at)}</span></div>
+        ${rPhoto?`<img src="${esc(rPhoto)}" style="width:52px;height:52px;border-radius:7px;object-fit:contain;background:#111;border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'">`:''}
         <button onclick="saveCommunityRecipe('${item.id}')" class="secondary" style="font-size:11px;padding:4px 10px;white-space:nowrap;flex-shrink:0">Save</button>
       </div>`;
     }
@@ -6045,19 +6090,11 @@ function commPreviewRecipe(recipeId){
   const im2=ingMap();
   const ingredientRows=(parsed.recipe||[]).map((line,i)=>{
     const ing=im2[line.ingredientId];
-    const embeddedName=line._ingDisplay||line._ingName||'';
-    const hardCoded=!ing&&!!embeddedName;
-    const unknown=!ing&&!embeddedName;
-    const name=ing?.name||ing?.displayName||embeddedName||'⚠ Unknown ingredient';
+    const name=ing?.name||ing?.displayName||line._ingDisplay||line._ingName||'';
     const qty=dispQty(line.qty||'',line.unit||'');
     const unit=dispUnit(line.unit||'');
-    const nameCell=hardCoded
-      ?`<div style="color:#d97706;font-weight:500">${esc(name)}</div><div style="font-size:10px;color:#d97706;opacity:.75;margin-top:1px">not in your bar</div>`
-      :unknown
-        ?`<div style="color:var(--ink3);font-style:italic">${esc(name)}</div>`
-        :`<div>${esc(name)}</div>`;
     return`<tr>
-      <td style="padding:7px 10px 7px 0;font-size:13px;border-bottom:1px solid var(--surface2);vertical-align:middle">${nameCell}</td>
+      <td style="padding:7px 10px 7px 0;font-size:13px;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(name)}</td>
       <td style="padding:7px 0 7px 10px;font-size:13px;font-weight:600;color:var(--ink2);text-align:right;white-space:nowrap;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(String(qty))}${unit?' '+esc(unit):''}</td>
     </tr>`;
   }).join('');
