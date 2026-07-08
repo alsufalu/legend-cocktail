@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.20</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.21</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -3728,6 +3728,8 @@ let commTab='feed';
 let _commFeed=[],_commRecipes=[],_commWines=[];
 let _feedLoading=false,_recipesLoading=false,_winesLoading=false;
 let _feedLoaded=false,_recipesLoaded=false,_winesLoaded=false;
+let _commRecipesLimit=10; // 0 = all
+function commSetRecipesLimit(val){_commRecipesLimit=val==='all'?0:Number(val);_commRecipes=[];_recipesLoaded=false;commLoadRecipes();}
 let _recipeSearchQuery='',_recipeSearchCategory='',_recipeSearchResults=[],_recipeSearching=false,_recipeSearchTimer=null;
 
 const BADGES=[
@@ -3984,11 +3986,17 @@ async function commLoadFeed(){
 async function commLoadRecipes(){
   _recipesLoading=true;render();
   try{
-    const{data}=await sbClient.from('sc_public_recipes').select('*').order('save_count',{ascending:false}).limit(8);
+    let q=sbClient.from('sc_public_recipes').select('*').order('save_count',{ascending:false});
+    if(_commRecipesLimit>0)q=q.limit(_commRecipesLimit);
+    const{data}=await q;
     _commRecipes=data||[];
   }catch(e){
-    try{const{data}=await sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false}).limit(8);_commRecipes=data||[];}
-    catch(e2){console.warn('Recipes load',e2);_commRecipes=[];}
+    try{
+      let q=sbClient.from('sc_public_recipes').select('*').order('created_at',{ascending:false});
+      if(_commRecipesLimit>0)q=q.limit(_commRecipesLimit);
+      const{data}=await q;
+      _commRecipes=data||[];
+    }catch(e2){console.warn('Recipes load',e2);_commRecipes=[];}
   }
   _recipesLoading=false;_recipesLoaded=true;render();
 }
@@ -4033,16 +4041,34 @@ function _commUpdateResults(){
   const clearBtn=document.getElementById('mCommClearBtn');
   if(clearBtn)clearBtn.style.display=(_recipeSearchQuery||_recipeSearchCategory)?'inline-flex':'none';
 }
+function _commRow(r,rank){
+  let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
+  const ingCount=(parsed.recipe||[]).length;
+  const saves=r.save_count||0;
+  return`<div onclick="commPreviewRecipeMobile('${r.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;active:background:var(--surface2)">
+    ${rank!==undefined?`<span style="font-size:11px;color:var(--ink3);font-weight:700;min-width:20px;text-align:right;flex-shrink:0">${rank}</span>`:''}
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:1px">${[r.category?esc(r.category):'',ingCount?ingCount+' ing.':'',saves?'💾 '+saves:'','by '+esc(r.display_name||'Member')].filter(Boolean).join(' · ')}</div>
+    </div>
+    <span style="color:var(--ink3);font-size:16px;flex-shrink:0">›</span>
+  </div>`;
+}
 // Just the results section HTML (no search bar)
 function _mCommRecipeResultsHTML(){
   if(_recipeSearchQuery||_recipeSearchCategory){
     if(_recipeSearching)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Searching…</div>';
     if(!_recipeSearchResults.length)return`<div style="text-align:center;padding:40px 16px;color:var(--ink3)">No recipes found for "${esc(_recipeSearchQuery||_recipeSearchCategory)}".</div>`;
-    return`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">${_recipeSearchResults.length} result${_recipeSearchResults.length!==1?'s':''}</div>`+_recipeSearchResults.map(_commCard).join('');
+    return`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">${_recipeSearchResults.length} result${_recipeSearchResults.length!==1?'s':''}</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">${_recipeSearchResults.map((r,i)=>_commRow(r,i+1)).join('')}</div>`;
   }
   if(_recipesLoading)return'<div style="text-align:center;padding:40px;color:var(--ink3)">⏳ Loading…</div>';
   if(!_commRecipes.length)return`<div style="text-align:center;padding:40px 16px"><div style="font-size:40px;margin-bottom:10px">🍹</div><p style="color:var(--ink3)">No recipes shared yet.<br>Open a cocktail and enable "Share in Community Library"!</p><button onclick="_recipesLoaded=false;_commRecipes=[];commLoadRecipes()" style="margin-top:12px;padding:8px 20px;background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink3)">↻ Retry</button></div>`;
-  return'<div style="font-size:13px;font-weight:700;margin-bottom:10px">⭐ Most Saved</div>'+_commRecipes.map(_commCard).join('');
+  const limitSel=`<select onchange="commSetRecipesLimit(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--ink)">
+    ${[['10','Top 10'],['50','Top 50'],['100','Top 100'],['all','All']].map(([v,l])=>`<option value="${v}"${(_commRecipesLimit===0?v==='all':_commRecipesLimit===Number(v))?'selected':''}>${l}</option>`).join('')}
+  </select>`;
+  return`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:13px;font-weight:700">⭐ Most Saved</span>${limitSel}</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">${_commRecipes.map((r,i)=>_commRow(r,i+1)).join('')}</div>`;
 }
 function _commCard(r){
   let parsed={};try{parsed=typeof r.cocktail_data==='string'?JSON.parse(r.cocktail_data):(r.cocktail_data||{});}catch(e){}
