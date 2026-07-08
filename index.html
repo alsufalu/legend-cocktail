@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.30</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.31</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1006,8 +1006,25 @@ async function seedNewUserFromAdmin() {
     setCloudStatus('☁ Setting up account…','');
     const {data, error} = await sbClient.from('app_data')
       .select('data').eq('id', TEMPLATE_USER_ID).maybeSingle();
-    if (error || !data?.data) { setCloudStatus('☁ Ready',''); return false; }
+    if (error) {
+      console.warn('Seed: template read error', error);
+      setCloudStatus('☁ Ready','');
+      showSnack('⚠ Could not load starter data — check Supabase RLS policy for template row');
+      return false;
+    }
+    if (!data?.data) {
+      console.warn('Seed: template row empty or missing');
+      setCloudStatus('☁ Ready','');
+      showSnack('⚠ Template account has no data — please add data to the template account first');
+      return false;
+    }
     const src = data.data;
+    if (!src.ingredients || src.ingredients.length === 0) {
+      console.warn('Seed: template has 0 ingredients');
+      setCloudStatus('☁ Ready','');
+      showSnack('⚠ Template account has no ingredients — please populate the template account');
+      return false;
+    }
     state.ingredients      = JSON.parse(JSON.stringify(src.ingredients || []));
     state.cocktails        = JSON.parse(JSON.stringify(src.cocktails || []));
     state.units            = src.units && src.units.length ? JSON.parse(JSON.stringify(src.units)) : defaultUnits;
@@ -1123,8 +1140,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
   sbClient.auth.getSession().then(({ data: { session } }) => {
-    if (session?.user) { currentUser = session.user; onSignedIn(); }
-    else { showLogin(); }
+    if (session?.user && !currentUser) { currentUser = session.user; onSignedIn(); }
+    else if (!session?.user) { showLogin(); }
   });
 });
 const oldKey=null;
