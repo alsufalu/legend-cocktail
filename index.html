@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.27</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.28</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1214,7 +1214,8 @@ function deleteIngredient(id){
   render();
 }
 function addCocktail(){const id='cocktail-'+Date.now();state.cocktails.push({id,name:'New Cocktail',category:'Signature Cocktail',notes:'',glass:'',served:'',build:'',garnish:'',specialInstructions:'',recipe:[]});state.selectedCocktailId=id;saveData();checkNewBadges();setTab('recipes')}
-function updateCocktail(field,value){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId);if(!c)return;c[field]=value;saveData();render()}
+let _cocktailRenderTimer=null;
+function updateCocktail(field,value){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId);if(!c)return;c[field]=value;saveData();clearTimeout(_cocktailRenderTimer);_cocktailRenderTimer=setTimeout(render,0);}
 function deleteCocktail(id){if(confirm('Delete this cocktail?')){state.cocktails=state.cocktails.filter(c=>c.id!==id);state.menu=state.menu.filter(m=>m.cocktailId!==id);state.selectedCocktailId=state.cocktails[0]?.id||'';saveData();render()}}
 function duplicateCocktail(id){
   const src=state.cocktails.find(c=>c.id===id);
@@ -2190,31 +2191,31 @@ function renderRecipes(q){
               <div class="compactForm" style="margin-bottom:0">
                 <div class="compactRow">
                   <span class="cLabel">Name</span>
-                  <input class="input" value="${esc(c.name)}" onchange="updateCocktail('name',this.value)" style="flex:2">
+                  <input id="cf_name" class="input" value="${esc(c.name)}" onchange="updateCocktail('name',this.value)" style="flex:2">
                   <span class="cLabel narrow">Category</span>
-                  <input class="input" value="${esc(c.category||'')}" onchange="updateCocktail('category',this.value)" style="flex:1">
+                  <input id="cf_category" class="input" value="${esc(c.category||'')}" onchange="updateCocktail('category',this.value)" style="flex:1">
                 </div>
                 <div class="compactRow">
                   <span class="cLabel">Glass</span>
-                  <input class="input" value="${esc(c.glass||'')}" onchange="updateCocktail('glass',this.value)">
+                  <input id="cf_glass" class="input" value="${esc(c.glass||'')}" onchange="updateCocktail('glass',this.value)">
                   <span class="cLabel narrow">Served</span>
-                  <input class="input" value="${esc(c.served||'')}" onchange="updateCocktail('served',this.value)">
+                  <input id="cf_served" class="input" value="${esc(c.served||'')}" onchange="updateCocktail('served',this.value)">
                   <span class="cLabel narrow">Build</span>
-                  <input class="input" value="${esc(c.build||'')}" onchange="updateCocktail('build',this.value)">
+                  <input id="cf_build" class="input" value="${esc(c.build||'')}" onchange="updateCocktail('build',this.value)">
                 </div>
                 <div class="compactRow">
                   <span class="cLabel">Garnish</span>
-                  <input class="input" value="${esc(c.garnish||'')}" onchange="updateCocktail('garnish',this.value)">
+                  <input id="cf_garnish" class="input" value="${esc(c.garnish||'')}" onchange="updateCocktail('garnish',this.value)">
                 </div>
                 <div class="compactRow">
                   <span class="cLabel">Notes</span>
-                  <input class="input" value="${esc(c.notes||'')}" onchange="updateCocktail('notes',this.value)" placeholder="Menu description…">
+                  <input id="cf_notes" class="input" value="${esc(c.notes||'')}" onchange="updateCocktail('notes',this.value)" placeholder="Menu description…">
                 </div>
                 <div class="compactRow">
                   <span class="cLabel">Instructions</span>
-                  <input class="input" value="${esc(c.specialInstructions||'')}" onchange="updateCocktail('specialInstructions',this.value)" placeholder="Build steps…">
+                  <input id="cf_instructions" class="input" value="${esc(c.specialInstructions||'')}" onchange="updateCocktail('specialInstructions',this.value)" placeholder="Build steps…">
                   <span class="cLabel narrow">Date</span>
-                  <input class="input" placeholder="MM/DD/YYYY" value="${esc(c.dateCreated||'')}" oninput="dateMaskInput(this)" onchange="updateCocktail('dateCreated',this.value)" style="flex:0.5">
+                  <input id="cf_date" class="input" placeholder="MM/DD/YYYY" value="${esc(c.dateCreated||'')}" oninput="dateMaskInput(this)" onchange="updateCocktail('dateCreated',this.value)" style="flex:0.5">
                 </div>
                 <div class="compactRow" style="background:${c.isPublic?'rgba(200,146,42,.06)':'transparent'};border-radius:6px;padding:4px 6px">
                   <span class="cLabel">Community</span>
@@ -5815,9 +5816,20 @@ async function saveCommunityRecipe(recipeId){
     if(nameExists)importName=importName+' (↓ '+(r.display_name||'Community')+')';
     // Resolve ingredients: match by ID first, then by name; auto-create stub for anything unmatched
     const im=ingMap();
+    // For own recipes: use local cocktail as additional fallback (stale published IDs)
+    const _isOwn=currentUser&&r.user_id===currentUser.id;
+    const _localCk=_isOwn?(state.cocktails||[]).find(c=>c.id===r.cocktail_id):null;
     const _newIngs=[];
-    const resolvedRecipe=(parsed.recipe||[]).map(line=>{
+    const resolvedRecipe=(parsed.recipe||[]).map((line,lineIdx)=>{
       if(im[line.ingredientId])return line; // exact ID match
+      // Fallback: same-position ingredient from the local version of this recipe
+      if(_localCk){
+        const localLine=(_localCk.recipe||[])[lineIdx];
+        if(localLine&&im[localLine.ingredientId]){
+          const li=im[localLine.ingredientId];
+          return{...line,ingredientId:localLine.ingredientId,_ingName:li.name,_ingDisplay:li.displayName||li.name};
+        }
+      }
       const embName=(line._ingDisplay||line._ingName||'').trim();
       const searchName=embName.toLowerCase();
       if(searchName){
@@ -6100,14 +6112,20 @@ function commPreviewRecipe(recipeId){
     parsed.garnish&&`<span>🌿 ${esc(parsed.garnish)}</span>`,
   ].filter(Boolean).join('<span style="color:var(--border);margin:0 4px">·</span>');
   const im2=ingMap();
+  // For own recipes: use local cocktail as fallback when community data has stale/missing ingredient names
+  const _isOwnPrev=currentUser&&r.user_id===currentUser.id;
+  const _localPrev=_isOwnPrev?(state.cocktails||[]).find(c=>c.id===r.cocktail_id):null;
   const ingredientRows=(parsed.recipe||[]).map((line,i)=>{
     const ing=im2[line.ingredientId];
-    const name=ing?.name||ing?.displayName||line._ingDisplay||line._ingName||'';
-    if(!name)return'';
+    // Fallback: check same-index line in local recipe (own recipes with stale published IDs)
+    const localLine=(!ing&&_localPrev)?((_localPrev.recipe||[])[i]||null):null;
+    const localIng=localLine?im2[localLine.ingredientId]:null;
+    const name=ing?.name||ing?.displayName||localIng?.name||line._ingDisplay||line._ingName||'';
+    if(!name&&!line.ingredientId)return'';
     const qty=dispQty(line.qty||'',line.unit||'');
     const unit=dispUnit(line.unit||'');
     return`<tr>
-      <td style="padding:7px 10px 7px 0;font-size:13px;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(name)}</td>
+      <td style="padding:7px 10px 7px 0;font-size:13px;border-bottom:1px solid var(--surface2);vertical-align:middle">${name?esc(name):`<span style="font-style:italic;color:var(--ink3)">(unlisted ingredient)</span>`}</td>
       <td style="padding:7px 0 7px 10px;font-size:13px;font-weight:600;color:var(--ink2);text-align:right;white-space:nowrap;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(String(qty))}${unit?' '+esc(unit):''}</td>
     </tr>`;
   }).join('');

@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.27</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.28</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -3988,9 +3988,20 @@ async function saveCommunityRecipeMobile(recipeId){
     if(nameExists)importName=importName+' (↓ '+(r.display_name||'Community')+')';
     // Resolve ingredients: match by ID first, then by name; auto-create stub for anything unmatched
     const im=Object.fromEntries(state.ingredients.map(i=>[i.id,i]));
+    // For own recipes: local cocktail as fallback when published IDs are stale
+    const _mIsOwnSave=currentUser&&r.user_id===currentUser.id;
+    const _mLocalCk=_mIsOwnSave?(state.cocktails||[]).find(c=>c.id===r.cocktail_id):null;
     const _newIngs=[];
-    const resolvedRecipe=(parsed.recipe||[]).map(line=>{
+    const resolvedRecipe=(parsed.recipe||[]).map((line,lineIdx)=>{
       if(im[line.ingredientId])return line; // exact ID match
+      // Own-recipe fallback: same-position ingredient from local recipe
+      if(_mLocalCk){
+        const localLine=(_mLocalCk.recipe||[])[lineIdx];
+        if(localLine&&im[localLine.ingredientId]){
+          const li=im[localLine.ingredientId];
+          return{...line,ingredientId:localLine.ingredientId,_ingName:li.name,_ingDisplay:li.displayName||li.name};
+        }
+      }
       const embName=(line._ingDisplay||line._ingName||'').trim();
       const searchName=embName.toLowerCase();
       if(searchName){
@@ -4276,13 +4287,18 @@ function commPreviewRecipeMobile(recipeId){
   const saves=r.save_count||0;
   const details=[r.glass&&`🥃 ${r.glass}`,parsed.served&&`🧊 ${parsed.served}`,parsed.build&&`🔧 ${parsed.build}`,parsed.garnish&&`🌿 ${parsed.garnish}`].filter(Boolean).join(' · ');
   const mIm=Object.fromEntries(state.ingredients.map(i=>[i.id,i]));
+  // For own recipes: use local cocktail as fallback when published data has stale ingredient IDs
+  const _mIsOwn=currentUser&&r.user_id===currentUser.id;
+  const _mLocalPrev=_mIsOwn?(state.cocktails||[]).find(c=>c.id===r.cocktail_id):null;
   const ingredientRows=(parsed.recipe||[]).map((line,i)=>{
     const ing=mIm[line.ingredientId];
-    const name=ing?.name||ing?.displayName||line._ingDisplay||line._ingName||'';
-    if(!name)return'';
+    const localLine=(!ing&&_mLocalPrev)?((_mLocalPrev.recipe||[])[i]||null):null;
+    const localIng=localLine?mIm[localLine.ingredientId]:null;
+    const name=ing?.name||ing?.displayName||localIng?.name||line._ingDisplay||line._ingName||'';
+    if(!name&&!line.ingredientId)return'';
     const dQty=dispQty(line.qty||'',line.unit||''); const dUnit=dispUnit(line.unit||'');
     return`<tr>
-      <td style="padding:8px 10px 8px 0;font-size:14px;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(name)}</td>
+      <td style="padding:8px 10px 8px 0;font-size:14px;border-bottom:1px solid var(--surface2);vertical-align:middle">${name?esc(name):`<span style="font-style:italic;color:var(--ink3)">(unlisted ingredient)</span>`}</td>
       <td style="padding:8px 0 8px 10px;font-size:14px;font-weight:600;color:var(--ink2);text-align:right;white-space:nowrap;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(String(dQty))}${dUnit?' '+esc(dUnit):''}</td>
     </tr>`;
   }).join('');
