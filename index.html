@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.33</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.34</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1033,6 +1033,7 @@ async function seedNewUserFromAdmin() {
     localStorage.setItem(lsKey, JSON.stringify(state));
     syncToCloud();
     setCloudStatus('☁ Synced','synced');
+    showSnack(`✓ Account seeded: ${state.ingredients.length} ingredients, ${state.cocktails.length} cocktails from template`);
     return true;
   } catch(e) {
     console.warn('Seed failed:', e);
