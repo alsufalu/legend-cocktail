@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.19</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.20</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -5697,8 +5697,15 @@ async function submitPourLog(){
   if(currentUser&&entry.isPublic){
     try{
       const dn=state.profile?.displayName||currentUser.email?.split('@')[0]||'Member';
-      const{error}=await sbClient.from('sc_pour_logs').insert({user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true,photo_url:entry.photoUrl||null});
-      if(error)console.warn('Pour log insert error:',error.message,error.code);
+      // Build insert without photo_url first; add it only if bucket/column exist (run sql_migration_pour_photos.sql)
+      const insertRow={user_id:currentUser.id,display_name:dn,item_type:entry.type,item_name:entry.name,note:entry.note||null,rating:entry.rating||null,venue:entry.venue||null,is_public:true};
+      if(entry.photoUrl)insertRow.photo_url=entry.photoUrl;
+      const{error}=await sbClient.from('sc_pour_logs').insert(insertRow);
+      if(error&&error.code==='PGRST204'){
+        // photo_url column missing — retry without it (migration not yet run)
+        const{error:e2}=await sbClient.from('sc_pour_logs').insert({...insertRow,photo_url:undefined});
+        if(e2)console.warn('Pour log insert error (no photo col):',e2.message);
+      }else if(error)console.warn('Pour log insert error:',error.message,error.code);
     }catch(e){console.warn('Pour log sync exception:',e?.message||e);}
     // Silently refresh feed in background so timestamps etc. come from server
     _feedLoaded=false;
