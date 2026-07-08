@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.29</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.30</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1009,9 +1009,7 @@ async function seedNewUserFromAdmin() {
     if (error || !data?.data) { setCloudStatus('☁ Ready',''); return false; }
     const src = data.data;
     state.ingredients      = JSON.parse(JSON.stringify(src.ingredients || []));
-    state.cocktails        = (src.cocktails || []).filter(c =>
-      SEED_COCKTAILS.some(name => (c.name || '').toLowerCase().includes(name))
-    ).map(c => JSON.parse(JSON.stringify(c)));
+    state.cocktails        = JSON.parse(JSON.stringify(src.cocktails || []));
     state.units            = src.units && src.units.length ? JSON.parse(JSON.stringify(src.units)) : defaultUnits;
     state.storageLocations = JSON.parse(JSON.stringify(src.storageLocations || []));
     const lsKey = STORAGE_KEY + '_' + currentUser.id;

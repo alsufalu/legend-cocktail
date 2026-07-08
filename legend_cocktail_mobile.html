@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.29</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.30</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -543,10 +543,8 @@ async function seedNewUserFromAdmin() {
     const src = data.data;
     // All ingredients
     state.ingredients = JSON.parse(JSON.stringify(src.ingredients || []));
-    // Only the specified starter cocktails (case-insensitive match)
-    state.cocktails = (src.cocktails || []).filter(c =>
-      SEED_COCKTAILS.some(name => (c.name || '').toLowerCase().includes(name))
-    ).map(c => JSON.parse(JSON.stringify(c)));
+    // All cocktails from template
+    state.cocktails = JSON.parse(JSON.stringify(src.cocktails || []));
     // Copy units and storage locations too
     state.units = src.units && src.units.length ? JSON.parse(JSON.stringify(src.units)) : defaultUnits;
     state.storageLocations = JSON.parse(JSON.stringify(src.storageLocations || []));
