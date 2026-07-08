@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.24</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.26</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1140,7 +1140,7 @@ function dispQty(qty,unit){
   const q=parseFloat(qty); if(isNaN(q))return qty;
   const u=String(unit||'').toLowerCase().trim();
   const sys=state.unitSystem||'oz';
-  if(sys==='ml'&&(u==='oz'||u==='fl oz'))return Math.round(q*OZ_TO_ML*10)/10;
+  if(sys==='ml'&&(u==='oz'||u==='fl oz'))return Math.round(q*OZ_TO_ML);
   if(sys==='oz'&&u==='ml')return Math.round(q/OZ_TO_ML*100)/100;
   return qty;
 }
@@ -5603,6 +5603,8 @@ async function enrichPublicRecipes(){
       },{onConflict:'id'});
     }catch(e){console.warn('enrichPublicRecipes:',c.name,e);}
   }
+  // Reload cached community recipes so previews immediately show updated ingredient names
+  if(publicCocktails.length){_commRecipes=[];_recipesLoaded=false;commLoadRecipes();}
 }
 // Recipe search state
 let _recipeSearchQuery='',_recipeSearchCategory='',_recipeSearchResults=[],_recipeSearching=false,_recipeSearchTimer=null;
@@ -6091,6 +6093,7 @@ function commPreviewRecipe(recipeId){
   const ingredientRows=(parsed.recipe||[]).map((line,i)=>{
     const ing=im2[line.ingredientId];
     const name=ing?.name||ing?.displayName||line._ingDisplay||line._ingName||'';
+    if(!name)return'';
     const qty=dispQty(line.qty||'',line.unit||'');
     const unit=dispUnit(line.unit||'');
     return`<tr>

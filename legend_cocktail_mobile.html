@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.24</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.26</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -719,7 +719,7 @@ function dispQty(qty,unit){
   const q=parseFloat(qty); if(isNaN(q))return qty;
   const u=String(unit||'').toLowerCase().trim();
   const sys=state.unitSystem||'oz';
-  if(sys==='ml'&&(u==='oz'||u==='fl oz'))return Math.round(q*OZ_TO_ML*10)/10;
+  if(sys==='ml'&&(u==='oz'||u==='fl oz'))return Math.round(q*OZ_TO_ML);
   if(sys==='oz'&&u==='ml')return Math.round(q/OZ_TO_ML*100)/100;
   return qty;
 }
@@ -3766,6 +3766,8 @@ async function enrichPublicRecipes(){
       },{onConflict:'id'});
     }catch(e){console.warn('enrichPublicRecipes:',c.name,e);}
   }
+  // Reload cached community recipes so previews immediately show updated ingredient names
+  if(publicCocktails.length){_commRecipes=[];_recipesLoaded=false;commLoadRecipes();}
 }
 let _recipeSearchQuery='',_recipeSearchCategory='',_recipeSearchResults=[],_recipeSearching=false,_recipeSearchTimer=null;
 
@@ -4265,6 +4267,7 @@ function commPreviewRecipeMobile(recipeId){
   const ingredientRows=(parsed.recipe||[]).map((line,i)=>{
     const ing=mIm[line.ingredientId];
     const name=ing?.name||ing?.displayName||line._ingDisplay||line._ingName||'';
+    if(!name)return'';
     const dQty=dispQty(line.qty||'',line.unit||''); const dUnit=dispUnit(line.unit||'');
     return`<tr>
       <td style="padding:8px 10px 8px 0;font-size:14px;border-bottom:1px solid var(--surface2);vertical-align:middle">${esc(name)}</td>
