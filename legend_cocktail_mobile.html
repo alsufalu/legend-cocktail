@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.26</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.27</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1711,8 +1711,10 @@ function renderCocktailSheet() {
       const unitOpts = state.units.map(u=>`<option value="${u.id}"${r.unit===u.id?' selected':''}>${esc(dispUnit(u.abbr)||u.abbr)}</option>`).join('');
       const dispIngName=ing?ing.name:(r._ingDisplay||r._ingName||'');
       const dispQtyVal=dispQty(r.qty||1,rUnitAbbr);
+      const mImportedBadge=ing?._imported?`<div style="font-size:10px;font-weight:700;color:#a06000;background:#fff8e1;border:1px solid #f0c040;border-radius:4px;padding:2px 7px;display:inline-block;margin-bottom:5px">↓ imported from community</div>`:'';
       return `<div class="recipe-line">
         <div class="autocomplete-wrap">
+          ${mImportedBadge}
           <input id="recipeIngInput${idx}"
             placeholder="Search ingredient…"
             value="${esc(dispIngName)}"
@@ -3984,22 +3986,32 @@ async function saveCommunityRecipeMobile(recipeId){
     let importName=parsed.name||r.name||'Imported Recipe';
     const nameExists=(state.cocktails||[]).some(x=>x.name===importName);
     if(nameExists)importName=importName+' (↓ '+(r.display_name||'Community')+')';
-    // Resolve ingredients: match by ID then by embedded name — never add to ingredient table
+    // Resolve ingredients: match by ID first, then by name; auto-create stub for anything unmatched
     const im=Object.fromEntries(state.ingredients.map(i=>[i.id,i]));
+    const _newIngs=[];
     const resolvedRecipe=(parsed.recipe||[]).map(line=>{
-      if(im[line.ingredientId])return line;
-      const embName=line._ingDisplay||line._ingName||'';
-      const searchName=embName.toLowerCase().trim();
+      if(im[line.ingredientId])return line; // exact ID match
+      const embName=(line._ingDisplay||line._ingName||'').trim();
+      const searchName=embName.toLowerCase();
       if(searchName){
+        // Name match in existing ingredients
         const match=state.ingredients.find(i=>
           (i.displayName||'').toLowerCase().trim()===searchName||
           (i.name||'').toLowerCase().trim()===searchName
         );
         if(match)return{...line,ingredientId:match.id,_ingName:match.name,_ingDisplay:match.displayName||match.name};
+        // Already created a stub for this name in this batch
+        const batchMatch=_newIngs.find(i=>i.name.toLowerCase()===searchName);
+        if(batchMatch)return{...line,ingredientId:batchMatch.id,_ingName:batchMatch.name,_ingDisplay:batchMatch.name};
+        // Auto-create a stub ingredient so the recipe line is fully linked
+        const newIngId='ing-imp-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
+        const newIng={id:newIngId,name:embName,displayName:embName,ingredientType:embName,brand:'',variant:'',category:'Imported',purchaseQty:0,purchaseUnit:'ml',purchaseCost:0,recipeUnit:'oz',yieldQty:0,packageSize:0,unit:'oz',packageCost:0,purchaseLabel:'',_imported:true,_importedFrom:r.display_name||'Community',_importedDate:new Date().toISOString()};
+        _newIngs.push(newIng);
+        return{...line,ingredientId:newIngId,_ingName:embName,_ingDisplay:embName};
       }
-      const fallback=embName||'Unknown ingredient';
-      return{...line,ingredientId:'',_ingName:fallback,_ingDisplay:fallback,_ingUnmatched:true};
+      return{...line,ingredientId:'',_ingName:'',_ingDisplay:''};
     });
+    if(_newIngs.length){if(!Array.isArray(state.ingredients))state.ingredients=[];state.ingredients.push(..._newIngs);}
     const nc={...parsed,id:newId,name:importName,recipe:resolvedRecipe,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name||'Community',savedFromDate:new Date().toISOString()};
     if(!Array.isArray(state.cocktails))state.cocktails=[];
     state.cocktails.push(nc);

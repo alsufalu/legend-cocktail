@@ -870,7 +870,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.26</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.27</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -2123,8 +2123,9 @@ function renderRecipes(q){
     const ing=im[r.ingredientId];
     const embeddedName=r._ingDisplay||r._ingName||'';
     const dispName=ing?.name||embeddedName||'';
+    const importedBadge=ing?._imported?`<span style="font-size:10px;font-weight:700;background:#fff8e1;color:#a06000;border:1px solid #f0c040;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle">↓ imported</span>`:'';
     const selectedLabel = dispName
-      ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${esc(dispName)}</span>`
+      ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${esc(dispName)}</span>${importedBadge}`
       : `<span style="font-size:11px;font-style:italic;color:var(--ink3)">No ingredient selected</span>`;
     const inputVal=ing?ing.name:embeddedName;
     const rUnitAbbr=unitAbbr(r.unit)||r.unit||'';
@@ -5812,23 +5813,32 @@ async function saveCommunityRecipe(recipeId){
     let importName=parsed.name||r.name||'Imported Recipe';
     const nameExists=(state.cocktails||[]).some(x=>x.name===importName);
     if(nameExists)importName=importName+' (↓ '+(r.display_name||'Community')+')';
-    // Resolve ingredients: match by ID first, then by embedded name — never add to ingredient table
+    // Resolve ingredients: match by ID first, then by name; auto-create stub for anything unmatched
     const im=ingMap();
+    const _newIngs=[];
     const resolvedRecipe=(parsed.recipe||[]).map(line=>{
-      if(im[line.ingredientId])return line; // exact match in this user's bar
-      const embName=line._ingDisplay||line._ingName||'';
-      const searchName=embName.toLowerCase().trim();
+      if(im[line.ingredientId])return line; // exact ID match
+      const embName=(line._ingDisplay||line._ingName||'').trim();
+      const searchName=embName.toLowerCase();
       if(searchName){
+        // Name match in existing ingredients
         const match=state.ingredients.find(i=>
           (i.displayName||'').toLowerCase().trim()===searchName||
           (i.name||'').toLowerCase().trim()===searchName
         );
-        if(match)return{...line,ingredientId:match.id,_ingName:match.name,_ingDisplay:match.displayName||match.name}; // matched by name
+        if(match)return{...line,ingredientId:match.id,_ingName:match.name,_ingDisplay:match.displayName||match.name};
+        // Already created a stub for this name in this batch
+        const batchMatch=_newIngs.find(i=>i.name.toLowerCase()===searchName);
+        if(batchMatch)return{...line,ingredientId:batchMatch.id,_ingName:batchMatch.name,_ingDisplay:batchMatch.name};
+        // Auto-create a stub ingredient so the recipe line is fully linked
+        const newIngId='ing-imp-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
+        const newIng={id:newIngId,name:embName,displayName:embName,ingredientType:embName,brand:'',variant:'',category:'Imported',purchaseQty:0,purchaseUnit:'ml',purchaseCost:0,recipeUnit:'oz',yieldQty:0,packageSize:0,unit:'oz',packageCost:0,purchaseLabel:'',_imported:true,_importedFrom:r.display_name||'Community',_importedDate:new Date().toISOString()};
+        _newIngs.push(newIng);
+        return{...line,ingredientId:newIngId,_ingName:embName,_ingDisplay:embName};
       }
-      // No local match — preserve the embedded name so the editor can display it; clear invalid ID so cost shows $0.00
-      const fallback=embName||'Unknown ingredient';
-      return{...line,ingredientId:'',_ingName:fallback,_ingDisplay:fallback,_ingUnmatched:true};
+      return{...line,ingredientId:'',_ingName:'',_ingDisplay:''};
     });
+    if(_newIngs.length){if(!Array.isArray(state.ingredients))state.ingredients=[];state.ingredients.push(..._newIngs);}
     const nc={...parsed,id:newId,name:importName,recipe:resolvedRecipe,isPublic:false,savedFromCommunity:true,savedFromUser:r.display_name||'Community',savedFromDate:new Date().toISOString()};
     if(!Array.isArray(state.cocktails))state.cocktails=[];
     state.cocktails.push(nc);
