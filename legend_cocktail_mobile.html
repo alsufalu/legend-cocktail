@@ -338,7 +338,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.41</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.42</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -664,6 +664,7 @@ function onSignedIn() {
 async function initApp() {
   renderMetrics(); render();
   const updated = await loadFromCloud();
+  normalizeComboFields();
   if (updated) { renderMetrics(); render(); }
   // New user with no data — seed from admin's ingredients + starter cocktails
   if (state.ingredients.length === 0 && state.cocktails.length === 0 && currentUser.email !== ADMIN_EMAIL && currentUser.id !== TEMPLATE_USER_ID) {
@@ -1571,6 +1572,22 @@ function addCocktail() {
 
 let cocktailDraft = null;
 let cocktailTab = 'recipe';
+function _titleCase(s){if(!s||typeof s!=='string')return s;return s.replace(/\b\w/g,c=>c.toUpperCase());}
+function normalizeComboFields(){
+  let changed=false;
+  state.cocktails.forEach(c=>{
+    ['glass','served','build'].forEach(f=>{
+      if(c[f]){const n=_titleCase(c[f]);if(n!==c[f]){c[f]=n;changed=true;}}
+    });
+  });
+  ['customGlasses','customServed','customBuilds'].forEach(k=>{
+    if(state[k]&&state[k].length){
+      const n=[...new Set(state[k].map(v=>_titleCase(v)))];
+      if(JSON.stringify(n)!==JSON.stringify(state[k])){state[k]=n;changed=true;}
+    }
+  });
+  if(changed)saveData();
+}
 function glassOptions(){return[...DEFAULT_GLASSES,...(state.customGlasses||[])];}
 function servedOptions(){return[...DEFAULT_SERVED,...(state.customServed||[])];}
 function buildOptions(){return[...DEFAULT_BUILD,...(state.customBuilds||[])];}

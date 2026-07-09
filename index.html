@@ -878,7 +878,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.41</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.42</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1115,6 +1115,7 @@ function onSignedIn() {
   const saved = localStorage.getItem(STORAGE_KEY + '_' + currentUser.id);
   if (saved) { try { const p = JSON.parse(saved); state = {...state, ...p, units: p.units || defaultUnits}; } catch(e) {} }
   loadFromCloud().then(async () => {
+    normalizeComboFields();
     render();
     // New user with no data — seed from template account
     if (state.ingredients.length === 0 && state.cocktails.length === 0 && currentUser.email !== ADMIN_EMAIL && currentUser.id !== TEMPLATE_USER_ID) {
@@ -1255,6 +1256,22 @@ function deleteIngredient(id){
 function addCocktail(){const id='cocktail-'+Date.now();state.cocktails.push({id,name:'New Cocktail',category:'Signature Cocktail',notes:'',glass:'',served:'',build:'',garnish:'',specialInstructions:'',recipe:[]});state.selectedCocktailId=id;saveData();checkNewBadges();setTab('recipes')}
 let _cocktailRenderTimer=null;
 function updateCocktail(field,value){const c=state.cocktails.find(x=>x.id===state.selectedCocktailId);if(!c)return;c[field]=value;saveData();clearTimeout(_cocktailRenderTimer);_cocktailRenderTimer=setTimeout(render,0);}
+function _titleCase(s){if(!s||typeof s!=='string')return s;return s.replace(/\b\w/g,c=>c.toUpperCase());}
+function normalizeComboFields(){
+  let changed=false;
+  state.cocktails.forEach(c=>{
+    ['glass','served','build'].forEach(f=>{
+      if(c[f]){const n=_titleCase(c[f]);if(n!==c[f]){c[f]=n;changed=true;}}
+    });
+  });
+  ['customGlasses','customServed','customBuilds'].forEach(k=>{
+    if(state[k]&&state[k].length){
+      const n=[...new Set(state[k].map(v=>_titleCase(v)))];
+      if(JSON.stringify(n)!==JSON.stringify(state[k])){state[k]=n;changed=true;}
+    }
+  });
+  if(changed)saveData();
+}
 function glassOptions(){return[...DEFAULT_GLASSES,...(state.customGlasses||[])];}
 function servedOptions(){return[...DEFAULT_SERVED,...(state.customServed||[])];}
 function buildOptions(){return[...DEFAULT_BUILD,...(state.customBuilds||[])];}
