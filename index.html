@@ -878,7 +878,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.42</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.44</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -937,8 +937,8 @@ const ADMIN_EMAIL    = 'aerubio1@yahoo.com';
 const TEMPLATE_USER_ID = '4d816642-6316-4733-a378-45bb2c9a79ce';
 const SEED_COCKTAILS = ['margarita','old fashioned','slow mojito','manhattan','sazerac','vodka martini','aperol spritz','hugo spritz'];
 const DEFAULT_GLASSES = ['Rocks','Collins','Highball','Coupe','Martini','Nick & Nora','Champagne Flute','Copper Mug','Wine Glass','Pint Glass','Julep Cup','Pilsner'];
-const DEFAULT_SERVED  = ['Shaken','Stirred','Blended','Thrown','Rolled','Layered'];
-const DEFAULT_BUILD   = ['On The Rocks','Up / Straight Up','Neat','Ice Lump','Crushed Ice','Blended / Frozen','Pellet Ice'];
+const DEFAULT_SERVED  = ['On The Rocks','Up / Straight Up','Neat','Ice Lump','Crushed Ice','Blended / Frozen','Pellet Ice'];
+const DEFAULT_BUILD   = ['Shaken','Stirred','Blended','Thrown','Rolled','Layered'];
 let   currentUser    = null;
 const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -1114,6 +1114,7 @@ function onSignedIn() {
   state.lastSaved=null;state.profile=null;
   const saved = localStorage.getItem(STORAGE_KEY + '_' + currentUser.id);
   if (saved) { try { const p = JSON.parse(saved); state = {...state, ...p, units: p.units || defaultUnits}; } catch(e) {} }
+  normalizeComboFields();
   loadFromCloud().then(async () => {
     normalizeComboFields();
     render();
@@ -1259,12 +1260,40 @@ function updateCocktail(field,value){const c=state.cocktails.find(x=>x.id===stat
 function _titleCase(s){if(!s||typeof s!=='string')return s;return s.replace(/\b\w/g,c=>c.toUpperCase());}
 function normalizeComboFields(){
   let changed=false;
+  // Values that belong in each field (lowercase for comparison)
+  const servedSet=new Set(DEFAULT_SERVED.map(s=>s.toLowerCase()));
+  const buildSet=new Set(DEFAULT_BUILD.map(b=>b.toLowerCase()));
   state.cocktails.forEach(c=>{
+    // Swap served/build if they're clearly reversed (served has a Build value and build has a Served value)
+    if(c.served&&c.build){
+      const sv=(c.served||'').toLowerCase(), bv=(c.build||'').toLowerCase();
+      if(buildSet.has(sv)&&servedSet.has(bv)){[c.served,c.build]=[c.build,c.served];changed=true;}
+    }
+    // Title case all three fields
     ['glass','served','build'].forEach(f=>{
       if(c[f]){const n=_titleCase(c[f]);if(n!==c[f]){c[f]=n;changed=true;}}
     });
   });
-  ['customGlasses','customServed','customBuilds'].forEach(k=>{
+  // Also swap customServed/customBuilds entries that are clearly in the wrong bucket
+  const newCS=[...(state.customServed||[])];
+  const newCB=[...(state.customBuilds||[])];
+  (state.customServed||[]).forEach(v=>{
+    if(buildSet.has(v.toLowerCase())){
+      const idx=newCS.indexOf(v);if(idx>-1)newCS.splice(idx,1);
+      if(!newCB.includes(v))newCB.push(v);
+      changed=true;
+    }
+  });
+  (state.customBuilds||[]).forEach(v=>{
+    if(servedSet.has(v.toLowerCase())){
+      const idx=newCB.indexOf(v);if(idx>-1)newCB.splice(idx,1);
+      if(!newCS.includes(v))newCS.push(v);
+      changed=true;
+    }
+  });
+  state.customServed=[...new Set(newCS.map(_titleCase))];
+  state.customBuilds=[...new Set(newCB.map(_titleCase))];
+  ['customGlasses'].forEach(k=>{
     if(state[k]&&state[k].length){
       const n=[...new Set(state[k].map(v=>_titleCase(v)))];
       if(JSON.stringify(n)!==JSON.stringify(state[k])){state[k]=n;changed=true;}
@@ -1272,9 +1301,9 @@ function normalizeComboFields(){
   });
   if(changed)saveData();
 }
-function glassOptions(){return[...DEFAULT_GLASSES,...(state.customGlasses||[])];}
-function servedOptions(){return[...DEFAULT_SERVED,...(state.customServed||[])];}
-function buildOptions(){return[...DEFAULT_BUILD,...(state.customBuilds||[])];}
+function glassOptions(){return[...DEFAULT_GLASSES,...(state.customGlasses||[]).map(_titleCase)];}
+function servedOptions(){return[...DEFAULT_SERVED,...(state.customServed||[]).map(_titleCase)];}
+function buildOptions(){return[...DEFAULT_BUILD,...(state.customBuilds||[]).map(_titleCase)];}
 function updateCocktailCombo(field,value){
   if(value){
     if(field==='glass'&&!glassOptions().includes(value)){state.customGlasses=[...(state.customGlasses||[]),value];}
