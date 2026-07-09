@@ -166,6 +166,14 @@
     .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--blue); background: var(--surface); }
     .field textarea { min-height: 80px; resize: vertical; }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .combo-wrap { position:relative; display:flex; align-items:center; }
+    .combo-wrap input { flex:1; padding-right:26px; }
+    .combo-arrow { position:absolute; right:8px; background:none; border:none; cursor:pointer; color:var(--ink3); font-size:13px; padding:2px; }
+    .combo-drop { position:absolute; top:calc(100% + 3px); left:0; right:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; max-height:220px; overflow-y:auto; z-index:600; box-shadow:0 6px 18px rgba(0,0,0,.14); display:none; }
+    .combo-drop.open { display:block; }
+    .combo-opt { padding:11px 14px; font-size:14px; cursor:pointer; color:var(--ink); border-bottom:1px solid var(--border); }
+    .combo-opt:last-child { border-bottom:none; }
+    .combo-opt:active { background:var(--surface2); }
 
     /* ===== BUTTONS ===== */
     .btn { border: none; border-radius: 10px; padding: 13px 20px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; }
@@ -330,7 +338,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.37</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.38</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1569,6 +1577,32 @@ function saveCustomComboOption(field,value){
   else if(field==='served'&&!servedOptions().includes(value)){state.customServed=[...(state.customServed||[]),value];saveData();}
   else if(field==='build'&&!buildOptions().includes(value)){state.customBuilds=[...(state.customBuilds||[]),value];saveData();}
 }
+function _mobOpenCombo(dropId,inputEl){
+  document.querySelectorAll('.combo-drop.open').forEach(d=>{if(d.id!==dropId)d.classList.remove('open');});
+  const drop=document.getElementById(dropId);if(!drop)return;
+  drop.querySelectorAll('.combo-opt').forEach(o=>o.style.display='');
+  drop.classList.add('open');
+}
+function _mobFilterCombo(dropId,q){
+  const drop=document.getElementById(dropId);if(!drop)return;
+  const lq=(q||'').toLowerCase();
+  drop.querySelectorAll('.combo-opt').forEach(o=>{o.style.display=(!lq||o.textContent.toLowerCase().includes(lq))?'':'none';});
+  drop.classList.add('open');
+}
+function _mobPickCombo(field,value,inputId){
+  cocktailDraft[field]=value;
+  const inp=document.getElementById(inputId);if(inp)inp.value=value;
+  document.querySelectorAll('.combo-drop').forEach(d=>d.classList.remove('open'));
+  saveCustomComboOption(field,value);
+}
+function _mobCloseCombo(dropId,field,inputId){
+  setTimeout(()=>{
+    const drop=document.getElementById(dropId);if(drop)drop.classList.remove('open');
+    const inp=document.getElementById(inputId);
+    if(inp){cocktailDraft[field]=inp.value;saveCustomComboOption(field,inp.value);}
+  },200);
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.combo-wrap'))document.querySelectorAll('.combo-drop.open').forEach(d=>d.classList.remove('open'));});
 
 function openCocktailSheet(id) {
   const c = state.cocktails.find(x => x.id === id);
@@ -1691,18 +1725,24 @@ function renderCocktailSheet() {
 
   if (cocktailTab === 'info') {
     const catOpts = ['Signature Cocktail','Classic Cocktail','Mocktail','Spirit Forward','Beer / Wine','Shots','Other'].map(cat => `<option value="${esc(cat)}"${c.category===cat?' selected':''}>${esc(cat)}</option>`).join('');
-    const glassDatalist = `<datalist id="mobGlassList">${glassOptions().map(g=>`<option value="${esc(g)}">`).join('')}</datalist>`;
-    const servedDatalist = `<datalist id="mobServedList">${servedOptions().map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`;
-    const buildDatalist = `<datalist id="mobBuildList">${buildOptions().map(b=>`<option value="${esc(b)}">`).join('')}</datalist>`;
+    const glassOpts2 = glassOptions().map(g=>`<div class="combo-opt" onmousedown="event.preventDefault();_mobPickCombo('glass','${esc(g)}','mobGlassInp')">${esc(g)}</div>`).join('');
+    const servedOpts2 = servedOptions().map(s=>`<div class="combo-opt" onmousedown="event.preventDefault();_mobPickCombo('served','${esc(s)}','mobServedInp')">${esc(s)}</div>`).join('');
+    const buildOpts2 = buildOptions().map(b=>`<div class="combo-opt" onmousedown="event.preventDefault();_mobPickCombo('build','${esc(b)}','mobBuildInp')">${esc(b)}</div>`).join('');
     body += `
       ${c.photo?`<img src="${esc(c.photo)}" style="width:100%;max-height:260px;object-fit:contain;background:#111;border-radius:12px;margin-bottom:12px;display:block">`:''}
       <div class="field"><label>Name</label><input type="text" value="${esc(c.name)}" oninput="cocktailDraft.name=this.value;document.getElementById('cocktailSheetTitle').textContent=this.value||'Cocktail'"/></div>
       <div class="field"><label>Category</label><select onchange="cocktailDraft.category=this.value">${catOpts}</select></div>
       <div class="field-row">
-        <div class="field"><label>Glass</label>${glassDatalist}<input type="text" list="mobGlassList" value="${esc(c.glass||'')}" oninput="cocktailDraft.glass=this.value" onchange="saveCustomComboOption('glass',this.value)" placeholder="Select or type…"/></div>
-        <div class="field"><label>Served</label>${servedDatalist}<input type="text" list="mobServedList" value="${esc(c.served||'')}" oninput="cocktailDraft.served=this.value" onchange="saveCustomComboOption('served',this.value)" placeholder="Select or type…"/></div>
+        <div class="field"><label>Glass</label>
+          <div class="combo-wrap"><input id="mobGlassInp" type="text" value="${esc(c.glass||'')}" placeholder="Select or type…" autocomplete="off" oninput="cocktailDraft.glass=this.value;_mobFilterCombo('mobGlassDrop',this.value)" onfocus="_mobOpenCombo('mobGlassDrop',this)" onblur="_mobCloseCombo('mobGlassDrop','glass','mobGlassInp')"><button class="combo-arrow" onmousedown="event.preventDefault();document.getElementById('mobGlassDrop').classList.contains('open')?document.getElementById('mobGlassDrop').classList.remove('open'):_mobOpenCombo('mobGlassDrop',document.getElementById('mobGlassInp'))" tabindex="-1">▾</button><div id="mobGlassDrop" class="combo-drop">${glassOpts2}</div></div>
+        </div>
+        <div class="field"><label>Served</label>
+          <div class="combo-wrap"><input id="mobServedInp" type="text" value="${esc(c.served||'')}" placeholder="Select or type…" autocomplete="off" oninput="cocktailDraft.served=this.value;_mobFilterCombo('mobServedDrop',this.value)" onfocus="_mobOpenCombo('mobServedDrop',this)" onblur="_mobCloseCombo('mobServedDrop','served','mobServedInp')"><button class="combo-arrow" onmousedown="event.preventDefault();document.getElementById('mobServedDrop').classList.contains('open')?document.getElementById('mobServedDrop').classList.remove('open'):_mobOpenCombo('mobServedDrop',document.getElementById('mobServedInp'))" tabindex="-1">▾</button><div id="mobServedDrop" class="combo-drop">${servedOpts2}</div></div>
+        </div>
       </div>
-      <div class="field"><label>Build</label>${buildDatalist}<input type="text" list="mobBuildList" value="${esc(c.build||'')}" oninput="cocktailDraft.build=this.value" onchange="saveCustomComboOption('build',this.value)" placeholder="Select or type…"/></div>
+      <div class="field"><label>Build</label>
+        <div class="combo-wrap"><input id="mobBuildInp" type="text" value="${esc(c.build||'')}" placeholder="Select or type…" autocomplete="off" oninput="cocktailDraft.build=this.value;_mobFilterCombo('mobBuildDrop',this.value)" onfocus="_mobOpenCombo('mobBuildDrop',this)" onblur="_mobCloseCombo('mobBuildDrop','build','mobBuildInp')"><button class="combo-arrow" onmousedown="event.preventDefault();document.getElementById('mobBuildDrop').classList.contains('open')?document.getElementById('mobBuildDrop').classList.remove('open'):_mobOpenCombo('mobBuildDrop',document.getElementById('mobBuildInp'))" tabindex="-1">▾</button><div id="mobBuildDrop" class="combo-drop">${buildOpts2}</div></div>
+      </div>
       <div class="field"><label>Garnish</label><input type="text" value="${esc(c.garnish||'')}" oninput="cocktailDraft.garnish=this.value" placeholder="e.g. Lime wheel"/></div>
       <div class="field"><label>Notes</label><textarea oninput="cocktailDraft.notes=this.value">${esc(c.notes||'')}</textarea></div>
       <div class="field"><label>Special Instructions</label><textarea oninput="cocktailDraft.specialInstructions=this.value">${esc(c.specialInstructions||'')}</textarea></div>

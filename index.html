@@ -558,6 +558,14 @@ details[open] > summary .chevron { transform: rotate(180deg); }
 }
 .compactRow .cLabel.narrow { min-width: 60px; }
 .compactRow .input, .compactRow select { margin: 0; flex: 1; min-width: 0; padding: 5px 8px; font-size: 12px; }
+.combo-wrap { position:relative; flex:1; min-width:0; display:flex; align-items:center; }
+.combo-wrap .input { flex:1; padding-right:22px; }
+.combo-arrow { position:absolute; right:5px; background:none; border:none; cursor:pointer; color:var(--ink3); font-size:11px; padding:2px 0; line-height:1; }
+.combo-arrow:hover { color:var(--ink); }
+.combo-drop { position:absolute; top:calc(100% + 3px); left:0; right:0; background:var(--surface); border:1px solid var(--border2); border-radius:8px; max-height:220px; overflow-y:auto; z-index:600; box-shadow:0 6px 16px rgba(0,0,0,.12); display:none; }
+.combo-drop.open { display:block; }
+.combo-opt { padding:7px 11px; font-size:12px; cursor:pointer; color:var(--ink); }
+.combo-opt:hover, .combo-opt.hi { background:var(--surface2); }
 
 /* FILTER BANNER */
 .filterBanner {
@@ -870,7 +878,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.37</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.38</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1248,7 +1256,6 @@ function glassOptions(){return[...DEFAULT_GLASSES,...(state.customGlasses||[])];
 function servedOptions(){return[...DEFAULT_SERVED,...(state.customServed||[])];}
 function buildOptions(){return[...DEFAULT_BUILD,...(state.customBuilds||[])];}
 function updateCocktailCombo(field,value){
-  // If typed value isn't in defaults or custom list, save it as a custom option
   if(value){
     if(field==='glass'&&!glassOptions().includes(value)){state.customGlasses=[...(state.customGlasses||[]),value];}
     else if(field==='served'&&!servedOptions().includes(value)){state.customServed=[...(state.customServed||[]),value];}
@@ -1256,6 +1263,34 @@ function updateCocktailCombo(field,value){
   }
   updateCocktail(field,value);
 }
+// Combo-box helpers
+function _openCombo(dropId,inputEl){
+  document.querySelectorAll('.combo-drop.open').forEach(d=>{if(d.id!==dropId)d.classList.remove('open');});
+  const drop=document.getElementById(dropId); if(!drop)return;
+  drop.querySelectorAll('.combo-opt').forEach(o=>o.style.display='');
+  drop.classList.add('open');
+  if(inputEl)inputEl.select();
+}
+function _filterCombo(dropId,q){
+  const drop=document.getElementById(dropId); if(!drop)return;
+  const lq=(q||'').toLowerCase();
+  drop.querySelectorAll('.combo-opt').forEach(o=>{ o.style.display=(!lq||o.textContent.toLowerCase().includes(lq))?'':'none'; });
+  drop.classList.add('open');
+}
+function _pickCombo(inputId,field,value){
+  const inp=document.getElementById(inputId); if(inp)inp.value=value;
+  document.querySelectorAll('.combo-drop').forEach(d=>d.classList.remove('open'));
+  updateCocktailCombo(field,value);
+}
+function _closeComboDelayed(dropId,inputId,field){
+  setTimeout(()=>{
+    const drop=document.getElementById(dropId); if(drop)drop.classList.remove('open');
+    const inp=document.getElementById(inputId); if(inp&&inp.value!==undefined)updateCocktailCombo(field,inp.value);
+  },180);
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.combo-wrap'))document.querySelectorAll('.combo-drop.open').forEach(d=>d.classList.remove('open'));
+});
 function deleteCocktail(id){if(confirm('Delete this cocktail?')){state.cocktails=state.cocktails.filter(c=>c.id!==id);state.menu=state.menu.filter(m=>m.cocktailId!==id);state.selectedCocktailId=state.cocktails[0]?.id||'';saveData();render()}}
 function duplicateCocktail(id){
   const src=state.cocktails.find(c=>c.id===id);
@@ -2237,14 +2272,32 @@ function renderRecipes(q){
                 </div>
                 <div class="compactRow">
                   <span class="cLabel">Glass</span>
-                  <input id="cf_glass" class="input" list="cfGlassList" value="${esc(c.glass||'')}" onchange="updateCocktailCombo('glass',this.value)" placeholder="Select or type…">
-                  <datalist id="cfGlassList">${glassOptions().map(g=>`<option value="${esc(g)}">`).join('')}</datalist>
+                  <div class="combo-wrap">
+                    <input id="cf_glass" class="input" value="${esc(c.glass||'')}" placeholder="Select or type…" autocomplete="off"
+                      onfocus="_openCombo('cfGlassDrop',this)"
+                      oninput="_filterCombo('cfGlassDrop',this.value)"
+                      onblur="_closeComboDelayed('cfGlassDrop','cf_glass','glass')">
+                    <button class="combo-arrow" onmousedown="event.preventDefault();document.getElementById('cfGlassDrop').classList.contains('open')?document.getElementById('cfGlassDrop').classList.remove('open'):_openCombo('cfGlassDrop',document.getElementById('cf_glass'))" tabindex="-1">▾</button>
+                    <div id="cfGlassDrop" class="combo-drop">${glassOptions().map(g=>`<div class="combo-opt" onmousedown="event.preventDefault();_pickCombo('cf_glass','glass','${esc(g)}')">${esc(g)}</div>`).join('')}</div>
+                  </div>
                   <span class="cLabel narrow">Served</span>
-                  <input id="cf_served" class="input" list="cfServedList" value="${esc(c.served||'')}" onchange="updateCocktailCombo('served',this.value)" placeholder="Select or type…">
-                  <datalist id="cfServedList">${servedOptions().map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
+                  <div class="combo-wrap">
+                    <input id="cf_served" class="input" value="${esc(c.served||'')}" placeholder="Select or type…" autocomplete="off"
+                      onfocus="_openCombo('cfServedDrop',this)"
+                      oninput="_filterCombo('cfServedDrop',this.value)"
+                      onblur="_closeComboDelayed('cfServedDrop','cf_served','served')">
+                    <button class="combo-arrow" onmousedown="event.preventDefault();document.getElementById('cfServedDrop').classList.contains('open')?document.getElementById('cfServedDrop').classList.remove('open'):_openCombo('cfServedDrop',document.getElementById('cf_served'))" tabindex="-1">▾</button>
+                    <div id="cfServedDrop" class="combo-drop">${servedOptions().map(s=>`<div class="combo-opt" onmousedown="event.preventDefault();_pickCombo('cf_served','served','${esc(s)}')">${esc(s)}</div>`).join('')}</div>
+                  </div>
                   <span class="cLabel narrow">Build</span>
-                  <input id="cf_build" class="input" list="cfBuildList" value="${esc(c.build||'')}" onchange="updateCocktailCombo('build',this.value)" placeholder="Select or type…">
-                  <datalist id="cfBuildList">${buildOptions().map(b=>`<option value="${esc(b)}">`).join('')}</datalist>
+                  <div class="combo-wrap">
+                    <input id="cf_build" class="input" value="${esc(c.build||'')}" placeholder="Select or type…" autocomplete="off"
+                      onfocus="_openCombo('cfBuildDrop',this)"
+                      oninput="_filterCombo('cfBuildDrop',this.value)"
+                      onblur="_closeComboDelayed('cfBuildDrop','cf_build','build')">
+                    <button class="combo-arrow" onmousedown="event.preventDefault();document.getElementById('cfBuildDrop').classList.contains('open')?document.getElementById('cfBuildDrop').classList.remove('open'):_openCombo('cfBuildDrop',document.getElementById('cf_build'))" tabindex="-1">▾</button>
+                    <div id="cfBuildDrop" class="combo-drop">${buildOptions().map(b=>`<div class="combo-opt" onmousedown="event.preventDefault();_pickCombo('cf_build','build','${esc(b)}')">${esc(b)}</div>`).join('')}</div>
+                  </div>
                 </div>
                 <div class="compactRow">
                   <span class="cLabel">Garnish</span>
