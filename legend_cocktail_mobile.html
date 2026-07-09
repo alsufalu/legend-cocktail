@@ -338,7 +338,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.40</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.41</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1581,8 +1581,10 @@ function saveCustomComboOption(field,value){
   else if(field==='build'&&!buildOptions().includes(value)){state.customBuilds=[...(state.customBuilds||[]),value];saveData();}
 }
 let _mobComboPicking=false;
+let _mobComboCloseTimer=null;
 function _mobOpenCombo(dropId,inputEl){
   if(_mobComboPicking)return;
+  clearTimeout(_mobComboCloseTimer); // cancel any pending close before opening
   document.querySelectorAll('.combo-drop.open').forEach(d=>{if(d.id!==dropId)d.classList.remove('open');});
   const drop=document.getElementById(dropId);if(!drop)return;
   drop.querySelectorAll('.combo-opt').forEach(o=>o.style.display='');
@@ -1603,7 +1605,7 @@ function _mobPickCombo(field,value,inputId){
   setTimeout(()=>{ _mobComboPicking=false; },350);
 }
 function _mobCloseCombo(dropId,field,inputId){
-  setTimeout(()=>{
+  _mobComboCloseTimer=setTimeout(()=>{
     if(_mobComboPicking)return;
     const drop=document.getElementById(dropId);if(drop)drop.classList.remove('open');
     const inp=document.getElementById(inputId);

@@ -878,7 +878,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.40</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.41</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1268,13 +1268,14 @@ function updateCocktailCombo(field,value){
 }
 // Combo-box helpers
 let _comboPicking=false;
+let _comboCloseTimer=null;
 function _openCombo(dropId,inputEl){
   if(_comboPicking)return;
+  clearTimeout(_comboCloseTimer); // cancel any pending close before opening
   document.querySelectorAll('.combo-drop.open').forEach(d=>{if(d.id!==dropId)d.classList.remove('open');});
   const drop=document.getElementById(dropId); if(!drop)return;
   drop.querySelectorAll('.combo-opt').forEach(o=>o.style.display='');
   drop.classList.add('open');
-  if(inputEl)inputEl.select();
 }
 function _filterCombo(dropId,q){
   const drop=document.getElementById(dropId); if(!drop)return;
@@ -1290,7 +1291,7 @@ function _pickCombo(inputId,field,value){
   setTimeout(()=>{ _comboPicking=false; },350);
 }
 function _closeComboDelayed(dropId,inputId,field){
-  setTimeout(()=>{
+  _comboCloseTimer=setTimeout(()=>{
     if(_comboPicking)return;
     const drop=document.getElementById(dropId); if(drop)drop.classList.remove('open');
     const inp=document.getElementById(inputId); if(inp&&inp.value!==undefined)updateCocktailCombo(field,inp.value);
