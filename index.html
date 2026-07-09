@@ -878,7 +878,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.38</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.39</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -951,14 +951,16 @@ function setCloudStatus(msg, cls=''){
 // Debounced cloud sync — fires 1.5s after last save
 let _syncTimer;
 function syncToCloud(){
+  const _syncUserId=currentUser?.id; // capture user at call time — prevents cross-user write on account switch
+  if(!_syncUserId)return;
   clearTimeout(_syncTimer);
   _syncTimer=setTimeout(async()=>{
     try{
       setCloudStatus('☁ Syncing…','');
-      if(!currentUser)return;
+      if(!currentUser||currentUser.id!==_syncUserId)return; // user changed, abort
       const {error}=await sbClient.from('app_data').upsert({
-        id:currentUser.id,
-        user_id:currentUser.id,
+        id:_syncUserId,
+        user_id:_syncUserId,
         data:state,
         updated_at:new Date().toISOString()
       },{onConflict:'id'});
@@ -1130,8 +1132,9 @@ function showLogin() {
   setTimeout(() => document.getElementById('deskAuthEmail').focus(), 100);
 }
 async function signOutDesktop() {
+  clearTimeout(_syncTimer); // Cancel any pending cloud sync before signing out
   await sbClient.auth.signOut();
-  state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:'',storageLocations:[],wines:[],recipeSortOrder:'natural',unitSystem:'oz'};
+  state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:'',storageLocations:[],wines:[],recipeSortOrder:'natural',unitSystem:'oz',customGlasses:[],customServed:[],customBuilds:[]};
   render();
   showLogin();
 }

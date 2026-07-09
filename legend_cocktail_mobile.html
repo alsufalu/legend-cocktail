@@ -338,7 +338,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.38</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.39</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -519,13 +519,15 @@ function setCloudStatus(msg, cls='') {
 }
 let _syncTimer;
 function syncToCloud() {
-  if (!currentUser) return;
+  const _syncUserId = currentUser?.id; // capture user at call time
+  if (!_syncUserId) return;
   clearTimeout(_syncTimer);
   _syncTimer = setTimeout(async () => {
     try {
       setCloudStatus('☁ Syncing…', '');
+      if (!currentUser || currentUser.id !== _syncUserId) return; // user changed, abort
       const {error} = await sbClient.from('app_data').upsert({
-        id: currentUser.id, user_id: currentUser.id,
+        id: _syncUserId, user_id: _syncUserId,
         data: state, updated_at: new Date().toISOString()
       }, {onConflict: 'id'});
       if (error) throw error;
@@ -732,10 +734,11 @@ async function saveMyShareKey() {
   showSnack('Share key saved ✓');
 }
 async function signOut() {
+  clearTimeout(_syncTimer); // Cancel any pending cloud sync before signing out
   await sbClient.auth.signOut();
   _onSignedInRunning = false;
   currentUser = null;
-  state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],savedShoppingLists:[],activeShoppingListId:'',units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:'',recipeSortOrder:'natural',unitSystem:'oz'};
+  state = {tab:'ingredients',ingredients:[],cocktails:[],selectedCocktailId:'',menu:[],savedMenus:[],savedShoppingLists:[],activeShoppingListId:'',units:defaultUnits,defaultLiquidUnit:'oz',lastSaved:'',recipeSortOrder:'natural',unitSystem:'oz',customGlasses:[],customServed:[],customBuilds:[]};
   document.getElementById('app').classList.add('hidden');
   document.getElementById('loginOverlay').classList.remove('hidden');
   document.getElementById('accountSheet').classList.add('hidden');
