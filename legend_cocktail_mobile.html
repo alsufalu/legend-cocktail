@@ -330,7 +330,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.35</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.36</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -569,7 +569,7 @@ async function seedNewUserFromAdmin() {
     localStorage.setItem(STORAGE_KEY + '_' + currentUser.id, JSON.stringify(state));
     syncToCloud();
     setCloudStatus('☁ Synced', 'synced');
-    showSnack(`✓ Seeded: ${state.ingredients.length} ings (first:"${state.ingredients[0]?.name}"), ${state.cocktails.length} ck from template`);
+    showSnack(`✓ Account ready — ${state.ingredients.length} ingredients & ${state.cocktails.length} recipes loaded`);
     return true;
   } catch(e) {
     console.warn('Seed failed:', e);
@@ -648,24 +648,15 @@ function onSignedIn() {
 async function initApp() {
   renderMetrics(); render();
   const updated = await loadFromCloud();
-  let _dbgSource = updated ? 'cloud' : (localStorage.getItem(STORAGE_KEY+'_'+currentUser.id) ? 'local' : 'empty');
   if (updated) { renderMetrics(); render(); }
   // New user with no data — seed from admin's ingredients + starter cocktails
   if (state.ingredients.length === 0 && state.cocktails.length === 0 && currentUser.email !== ADMIN_EMAIL && currentUser.id !== TEMPLATE_USER_ID) {
     const seeded = await seedNewUserFromAdmin();
-    _dbgSource = seeded ? 'seeded' : 'seed-failed';
     if (seeded) {
-      showSnack('Welcome! Your starter ingredients and cocktail recipes are ready 🍸');
+      showSnack('✓ Account ready — ingredients & recipes loaded');
       renderMetrics(); render();
     }
   }
-  // Persistent debug banner — click to dismiss
-  const _dbg = document.createElement('div');
-  _dbg.style.cssText = 'position:fixed;top:52px;left:0;right:0;background:#1a5c1a;color:#fff;padding:8px 12px;z-index:10000;font-size:11px;font-family:monospace;cursor:pointer;text-align:center;line-height:1.6;';
-  _dbg.innerHTML = '<b>🔍 DEBUG v3.35 — tap to dismiss</b><br>'
-    + `src:<b>${_dbgSource}</b> | ings:<b>${state.ingredients.length}</b> (first:"${state.ingredients[0]?.name||'none'}") | ck:<b>${state.cocktails.length}</b> | ${currentUser.email}`;
-  _dbg.onclick = () => _dbg.remove();
-  document.body.appendChild(_dbg);
   if (currentUser.email === ADMIN_EMAIL) {
     const {data} = await sbClient.from('share_keys').select('key').eq('owner_id', currentUser.id).maybeSingle();
     if (data) { const el = document.getElementById('myShareKey'); if(el) el.value = data.key; }
