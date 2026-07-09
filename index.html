@@ -878,7 +878,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.39</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.40</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1267,7 +1267,9 @@ function updateCocktailCombo(field,value){
   updateCocktail(field,value);
 }
 // Combo-box helpers
+let _comboPicking=false;
 function _openCombo(dropId,inputEl){
+  if(_comboPicking)return;
   document.querySelectorAll('.combo-drop.open').forEach(d=>{if(d.id!==dropId)d.classList.remove('open');});
   const drop=document.getElementById(dropId); if(!drop)return;
   drop.querySelectorAll('.combo-opt').forEach(o=>o.style.display='');
@@ -1281,12 +1283,15 @@ function _filterCombo(dropId,q){
   drop.classList.add('open');
 }
 function _pickCombo(inputId,field,value){
+  _comboPicking=true;
   const inp=document.getElementById(inputId); if(inp)inp.value=value;
   document.querySelectorAll('.combo-drop').forEach(d=>d.classList.remove('open'));
   updateCocktailCombo(field,value);
+  setTimeout(()=>{ _comboPicking=false; },350);
 }
 function _closeComboDelayed(dropId,inputId,field){
   setTimeout(()=>{
+    if(_comboPicking)return;
     const drop=document.getElementById(dropId); if(drop)drop.classList.remove('open');
     const inp=document.getElementById(inputId); if(inp&&inp.value!==undefined)updateCocktailCombo(field,inp.value);
   },180);
@@ -2315,6 +2320,13 @@ function renderRecipes(q){
                   <input id="cf_instructions" class="input" value="${esc(c.specialInstructions||'')}" onchange="updateCocktail('specialInstructions',this.value)" placeholder="Build steps…">
                   <span class="cLabel narrow">Date</span>
                   <input id="cf_date" class="input" placeholder="MM/DD/YYYY" value="${esc(c.dateCreated||'')}" oninput="dateMaskInput(this)" onchange="updateCocktail('dateCreated',this.value)" style="flex:0.5">
+                </div>
+                <div class="compactRow" style="padding:4px 6px">
+                  <span class="cLabel">Rating</span>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    ${[1,2,3,4,5].map(n=>`<span onmousedown="event.preventDefault();updateCocktail('rating',${(c.rating||0)===n?0:n})" style="font-size:22px;cursor:pointer;color:${n<=(c.rating||0)?'#c8922a':'#c8c8c8'};user-select:none;line-height:1" title="${n} star${n>1?'s':''}">${n<=(c.rating||0)?'★':'☆'}</span>`).join('')}
+                    ${(c.rating||0)>0?`<span style="font-size:11px;color:var(--ink3);margin-left:2px">${c.rating}/5</span>`:''}
+                  </div>
                 </div>
                 <div class="compactRow" style="background:${c.isPublic?'rgba(200,146,42,.06)':'transparent'};border-radius:6px;padding:4px 6px">
                   <span class="cLabel">Community</span>
