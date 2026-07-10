@@ -878,7 +878,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.44</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.45</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -2151,6 +2151,8 @@ function updateRecipeQtyConverted(cocktailId,idx,displayVal,unitId){
 }
 
 function renderRecipes(q){
+  const _ckScroll=document.getElementById('cocktailListScroll');
+  const _ckScrollTop=_ckScroll?_ckScroll.scrollTop:0;
   const im = ingMap();
   const filterIngredient = cocktailIngredientFilterId ? im[cocktailIngredientFilterId] : null;
 
@@ -2291,7 +2293,7 @@ function renderRecipes(q){
         <div style="display:flex;gap:4px;margin-bottom:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:4px">
           <button onclick="cocktailSortDir=cocktailSortDir==='az'?'za':'az';render()" style="flex:1;padding:5px 8px;font-size:11px;font-weight:700;background:var(--surface);color:var(--blue);border:1px solid var(--border);border-radius:6px;box-shadow:var(--shadow-sm)">Name ${cocktailSortDir==='az'?'↑':'↓'}</button>
         </div>
-        <div style="position:relative;"><div class="list" style="max-height:${recipeExportMode?'calc(70vh - 52px)':'70vh'};overflow-y:auto;padding-right:4px">${list}</div>${exportBar}</div>
+        <div style="position:relative;"><div id="cocktailListScroll" class="list" style="max-height:${recipeExportMode?'calc(70vh - 52px)':'70vh'};overflow-y:auto;padding-right:4px">${list}</div>${exportBar}</div>
       </div>
       <div>
         <div class="panelHead"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2>Recipe Builder</h2>
@@ -2393,6 +2395,10 @@ function renderRecipes(q){
       </div>
     </div>`
   );
+  requestAnimationFrame(()=>{
+    const el=document.getElementById('cocktailListScroll');
+    if(el)el.scrollTop=_ckScrollTop;
+  });
 }
 function selectMenuFromDropdown(idx,value){
   updateMenu(idx,'cocktailId',value);
