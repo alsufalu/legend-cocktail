@@ -878,7 +878,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
     <div class="topbar-logo">🍸</div>
     <div>
       <div class="topbar-title">Shaker &amp; Cellar</div>
-      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.46</div>
+      <div class="topbar-subtitle" id="appVersionLabel">Cocktail Cost &amp; Menu Builder · v3.49</div>
     </div>
   </div>
   <div class="topbar-divider"></div>
@@ -1722,10 +1722,10 @@ function renderIngredients(q){
     ${[['list','📋 Ingredients'],['inventory','📦 Inventory'],['reports','📊 Reports']].map(([t,l])=>`<button onclick="ingredientsSubTab='${t}';render()" style="padding:8px 18px;font-size:13px;font-weight:600;background:none;border:none;border-bottom:${ingredientsSubTab===t?'2px solid var(--blue);color:var(--blue)':'2px solid transparent;color:var(--ink3)'};cursor:pointer;margin-bottom:-2px;font-family:inherit">${l}</button>`).join('')}
   </div>`;
   if(ingredientsSubTab==='inventory'){
-    panel('Ingredients','',subTabNav+renderInventoryStock());return;
+    panel('Ingredients','',subTabNav+renderInventoryStock(q));return;
   }
   if(ingredientsSubTab==='reports'){
-    panel('Ingredients','',subTabNav+renderInventoryReports());return;
+    panel('Ingredients','',subTabNav+renderInventoryReports(q));return;
   }
   const categories=ingredientCategories();
   if(!categories.includes(ingredientCategoryFilter)) ingredientCategoryFilter='All';
@@ -1869,7 +1869,8 @@ let inventoryIngId='';
 let inventoryCatFilter='All';
 const INV_TO_ML={ml:1,oz:29.5735,L:1000};
 function invEntryMl(e){
-  if(e.unit==='bottles'){const bsMl=(e.bottleSize||0)*(INV_TO_ML[e.bottleSizeUnit||'ml']||1);return(e.quantity||0)*bsMl;}
+  const fill=(e.fill!==undefined&&e.fill!==''&&e.fill!==null)?Math.max(0,Math.min(1,Number(e.fill))):1;
+  if(e.unit==='bottles'){const bsMl=(e.bottleSize||0)*(INV_TO_ML[e.bottleSizeUnit||'ml']||1);return(e.quantity||0)*bsMl*fill;}
   return(e.quantity||0)*(INV_TO_ML[e.unit||'ml']||1);
 }
 function ingInvMl(id){return(state.inventory||[]).filter(e=>e.ingredientId===id).reduce((s,e)=>s+invEntryMl(e),0);}
@@ -1894,12 +1895,12 @@ function invLocOptions(){
 function addInvEntry(ingId){
   if(!state.inventory)state.inventory=[];
   const locs=invLocOptions();
-  state.inventory.push({id:'inv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),ingredientId:ingId,location:locs[0]||'Bar',quantity:1,unit:'bottles',bottleSize:750,bottleSizeUnit:'ml'});
+  state.inventory.push({id:'inv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),ingredientId:ingId,location:locs[0]||'Bar',quantity:1,unit:'bottles',bottleSize:750,bottleSizeUnit:'ml',fill:1});
   saveData();render();
 }
 function updateInvEntry(id,field,value){
   const e=(state.inventory||[]).find(e=>e.id===id);if(!e)return;
-  e[field]=['quantity','bottleSize'].includes(field)?Number(value):value;
+  e[field]=['quantity','bottleSize','fill'].includes(field)?Number(value):value;
   saveData();render();
 }
 function removeInvEntry(id){
@@ -1918,10 +1919,12 @@ function addInvLocIfNew(name){
     state.storageLocations.push({id:'loc_'+Date.now(),name:t,bins:[]});
   }
 }
-function renderInventoryStock(){
+function renderInventoryStock(q){
   const cats=['All',...new Set(state.ingredients.map(i=>majorIngredientCategory(i)).filter(Boolean))];
   if(!cats.includes(inventoryCatFilter))inventoryCatFilter='All';
-  const filtered=state.ingredients.filter(i=>inventoryCatFilter==='All'||majorIngredientCategory(i)===inventoryCatFilter);
+  const filtered=state.ingredients
+    .filter(i=>inventoryCatFilter==='All'||majorIngredientCategory(i)===inventoryCatFilter)
+    .filter(i=>!q||JSON.stringify(i).toLowerCase().includes(q));
   const selIng=inventoryIngId?state.ingredients.find(i=>i.id===inventoryIngId):null;
   const locOpts=invLocOptions().map(n=>`<option value="${esc(n)}">`).join('');
   const catTabs=`<div class="categoryTabs">${cats.map(c=>`<button class="categoryTab ${inventoryCatFilter===c?'active':''}" onclick="inventoryCatFilter='${esc(c)}';render()">${esc(c)}</button>`).join('')}</div>`;
@@ -1954,12 +1957,28 @@ function renderInventoryStock(){
         <td style="padding:5px 6px"><input class="input" type="number" min="0" step="0.01" value="${e.quantity||0}" style="width:65px" onchange="updateInvEntry('${e.id}','quantity',this.value)"></td>
         <td style="padding:5px 6px"><select class="input" style="padding:4px 6px" onchange="updateInvEntry('${e.id}','unit',this.value)">${['bottles','oz','ml','L'].map(u=>`<option value="${u}" ${e.unit===u?'selected':''}>${u}</option>`).join('')}</select></td>
         <td style="padding:5px 6px">${e.unit==='bottles'?`<div style="display:flex;gap:3px;align-items:center"><input class="input" type="number" min="0" step="1" value="${e.bottleSize||750}" style="width:58px" onchange="updateInvEntry('${e.id}','bottleSize',this.value)"><select class="input" style="padding:4px 5px" onchange="updateInvEntry('${e.id}','bottleSizeUnit',this.value)">${['ml','oz','L'].map(u=>`<option value="${u}" ${(e.bottleSizeUnit||'ml')===u?'selected':''}>${u}</option>`).join('')}</select></div>`:'<span style="color:var(--ink3);font-size:12px">—</span>'}</td>
+        <td style="padding:5px 6px">${e.unit==='bottles'?(()=>{
+          const fill=e.fill!=null&&e.fill!==''?Number(e.fill):1;
+          const bsMl=(e.bottleSize||0)*(INV_TO_ML[e.bottleSizeUnit||'ml']||1);
+          const remMl=bsMl*fill;
+          const hint=fill>=1?'Full':fill<=0?'Empty':fmtInvMl(remMl)+' left';
+          return`<div style="display:flex;flex-direction:column;gap:3px">
+            <div style="display:flex;gap:3px;align-items:center">
+              <input class="input" type="number" min="0" max="1" step="0.01" value="${fill.toFixed(2)}" style="width:62px" placeholder="0–1" onchange="updateInvEntry('${e.id}','fill',this.value)">
+              <button onclick="updateInvEntry('${e.id}','fill',1)" style="padding:2px 5px;font-size:10px;background:${fill>=1?'var(--blue)':'var(--surface2)'};color:${fill>=1?'#fff':'var(--ink2)'};border:1px solid var(--border);border-radius:4px;cursor:pointer">Full</button>
+              <button onclick="updateInvEntry('${e.id}','fill',0.75)" style="padding:2px 5px;font-size:10px;background:${Math.abs(fill-0.75)<0.01?'var(--blue)':'var(--surface2)'};color:${Math.abs(fill-0.75)<0.01?'#fff':'var(--ink2)'};border:1px solid var(--border);border-radius:4px;cursor:pointer">¾</button>
+              <button onclick="updateInvEntry('${e.id}','fill',0.5)" style="padding:2px 5px;font-size:10px;background:${Math.abs(fill-0.5)<0.01?'var(--blue)':'var(--surface2)'};color:${Math.abs(fill-0.5)<0.01?'#fff':'var(--ink2)'};border:1px solid var(--border);border-radius:4px;cursor:pointer">½</button>
+              <button onclick="updateInvEntry('${e.id}','fill',0.25)" style="padding:2px 5px;font-size:10px;background:${Math.abs(fill-0.25)<0.01?'var(--blue)':'var(--surface2)'};color:${Math.abs(fill-0.25)<0.01?'#fff':'var(--ink2)'};border:1px solid var(--border);border-radius:4px;cursor:pointer">¼</button>
+            </div>
+            <div style="font-size:10px;color:var(--ink3)">${hint}</div>
+          </div>`;
+        })():'<span style="color:var(--ink3);font-size:12px">—</span>'}</td>
         <td style="padding:5px 6px;font-family:var(--mono);font-size:12px;color:var(--ink2);white-space:nowrap">${eMl>0?fmtInvMl(eMl):'—'}</td>
         <td style="padding:5px 4px"><button class="delete" style="padding:3px 7px;font-size:11px" onclick="removeInvEntry('${e.id}')">✕</button></td>
       </tr>`;
     }).join('');
-    return`<div class="panel" style="position:sticky;top:16px">
-      <div class="panelHead"><div>
+    return`<div class="panel" style="position:sticky;top:16px;max-height:calc(100vh - 130px);overflow-y:auto;">
+      <div class="panelHead" style="position:sticky;top:0;background:var(--surface);z-index:2;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px"><div>
         <div style="font-size:11px;color:var(--ink3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Stock — ${esc(selIng.name||selIng.ingredientType||'')}</div>
         <div style="font-size:12px;color:var(--ink2)">${esc(majorIngredientCategory(selIng)||'')}</div>
       </div><button class="btn-ghost" style="font-size:12px" onclick="inventoryIngId='';render()">✕</button></div>
@@ -1984,18 +2003,34 @@ function renderInventoryStock(){
       <datalist id="invLocList">${locOpts}</datalist>
       ${entries.length>0?`<div style="overflow-x:auto;margin-bottom:10px"><table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="color:var(--ink3);font-size:10px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)">
-          <th style="text-align:left;padding:4px 6px 7px;font-weight:600">Location</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Qty</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Unit</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Bottle Size</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Total</th><th></th>
+          <th style="text-align:left;padding:4px 6px 7px;font-weight:600">Location</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Qty</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Unit</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Bottle Size</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Fill Level</th><th style="text-align:left;padding:4px 6px 7px;font-weight:600">Total</th><th></th>
         </tr></thead><tbody>${entryRows}</tbody>
       </table></div>`:`<p style="color:var(--ink3);font-size:12px;margin-bottom:10px">No stock logged yet.</p>`}
       <button class="secondary" style="font-size:12px" onclick="addInvEntry('${selIng.id}')">+ Add Location</button>
     </div>`;
   })():`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--ink3);text-align:center;gap:8px"><div style="font-size:32px">📦</div><div style="font-weight:600;font-size:14px">Select an ingredient</div><div style="font-size:12px">to log stock by location</div></div>`;
-  return`<div style="display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start">${catTabs}<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:var(--ink3);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)"><th style="text-align:left;padding:6px 8px;font-weight:600">Ingredient</th><th style="text-align:left;padding:6px 8px;font-weight:600">Category</th><th style="text-align:left;padding:6px 8px;font-weight:600">On Hand</th><th style="text-align:left;padding:6px 8px;font-weight:600">Status</th><th style="text-align:left;padding:6px 8px;font-weight:600">Locs</th></tr></thead><tbody>${ingRows||'<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--ink3)">No ingredients</td></tr>'}</tbody></table></div>${rightPanel}</div>`;
+  return`<div style="display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start">
+    <div>${catTabs}${q?`<p class="hint" style="margin:4px 0 8px">Showing results for "${esc(q)}"</p>`:''}
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="color:var(--ink3);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:6px 8px;font-weight:600">Ingredient</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600">Category</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600">On Hand</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600">Status</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600">Locs</th>
+        </tr></thead>
+        <tbody>${ingRows||`<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--ink3)">${q?'No ingredients match "'+esc(q)+'"':'No ingredients'}</td></tr>`}</tbody>
+      </table></div>
+    </div>
+    ${rightPanel}
+  </div>`;
 }
-function renderInventoryReports(){
+function renderInventoryReports(q){
   const cats=['All',...new Set(state.ingredients.map(i=>majorIngredientCategory(i)).filter(Boolean))];
   if(!cats.includes(inventoryCatFilter))inventoryCatFilter='All';
-  const filtered=state.ingredients.filter(i=>inventoryCatFilter==='All'||majorIngredientCategory(i)===inventoryCatFilter);
+  const filtered=state.ingredients
+    .filter(i=>inventoryCatFilter==='All'||majorIngredientCategory(i)===inventoryCatFilter)
+    .filter(i=>!q||JSON.stringify(i).toLowerCase().includes(q));
   const catTabs=`<div class="categoryTabs">${cats.map(c=>`<button class="categoryTab ${inventoryCatFilter===c?'active':''}" onclick="inventoryCatFilter='${esc(c)}';render()">${esc(c)}</button>`).join('')}</div>`;
   const withPar=filtered.filter(i=>ingParMl(i)>0);
   const lowStock=withPar.filter(i=>ingInvMl(i.id)<ingParMl(i)).sort((a,b)=>{
