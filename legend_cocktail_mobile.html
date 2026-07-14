@@ -338,7 +338,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.51</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.53</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1929,8 +1929,13 @@ function filterRecipeIng(idx, val) {
   const matches = state.ingredients.filter(i => i.name.toLowerCase().includes(q) || (i.brand||'').toLowerCase().includes(q)).slice(0,10);
   const portal = _getRecipeIngPortal();
   portal._activeIdx = idx;
-  if (!matches.length || !q) { portal.style.display = 'none'; return; }
-  portal.innerHTML = matches.map(i => `<div class="autocomplete-item" onmousedown="selectRecipeIng(${idx},'${i.id}');_getRecipeIngPortal().style.display='none'">${esc(i.name)}${i.brand?' — '+esc(i.brand):''}</div>`).join('');
+  if (!q) { portal.style.display = 'none'; return; }
+  if (!matches.length) {
+    portal._pendingMobAdd = {name:val.trim(), lineIdx:idx};
+    portal.innerHTML = `<div class="autocomplete-item" style="color:var(--blue);font-weight:600" onmousedown="_mobTriggerQuickAdd()">＋ Add "${esc(val.trim())}" as new ingredient</div>`;
+  } else {
+    portal.innerHTML = matches.map(i => `<div class="autocomplete-item" onmousedown="selectRecipeIng(${idx},'${i.id}');_getRecipeIngPortal().style.display='none'">${esc(i.name)}${i.brand?' — '+esc(i.brand):''}</div>`).join('');
+  }
   const rect = input.getBoundingClientRect();
   portal.style.left = rect.left + 'px';
   portal.style.width = rect.width + 'px';
@@ -1957,6 +1962,66 @@ function selectRecipeIng(idx, ingId) {
   cocktailDraft.recipe[idx].unit = ing.recipeUnit || ing.unit || 'oz';
   renderCocktailSheet();
 }
+
+/* ── Mobile quick-add ingredient ── */
+let _mobQaIng=null;
+function _mobTriggerQuickAdd(){var p=_getRecipeIngPortal();if(p&&p._pendingMobAdd){var d=p._pendingMobAdd;p.style.display='none';_mobOpenQuickAddModal(d.name,d.lineIdx);}}
+function _mobOpenQuickAddModal(name,li){_mobQaIng={name:name,brand:'',category:'Spirits',unit:'oz',packageSize:25.3605,purchaseCost:0,abv:'',lineIdx:li};_mobRenderQuickAddModal();}
+function _mobCloseQuickAddModal(){var el=document.getElementById('_mobQAModal');if(el)el.style.display='none';_mobQaIng=null;}
+function _mobSaveQuickAdd(){
+  if(!_mobQaIng)return;
+  var name=(_mobQaIng.name||'').trim();
+  if(!name){alert('Please enter a name.');return;}
+  var id='ingredient_'+Date.now();
+  var ps=Number(_mobQaIng.packageSize)||25.3605;
+  var pc=Number(_mobQaIng.purchaseCost||0);
+  var ng={id:id,ingredientType:name,name:name,brand:_mobQaIng.brand||'',variant:'',category:_mobQaIng.category||'',
+    unit:_mobQaIng.unit||'oz',recipeUnit:_mobQaIng.unit||'oz',packageSize:ps,yieldQty:ps,packageCost:pc,purchaseCost:pc};
+  if(_mobQaIng.abv!==''&&_mobQaIng.abv!=null&&_mobQaIng.abv!==undefined)ng.abv=Number(_mobQaIng.abv);
+  if(!Array.isArray(state.ingredients))state.ingredients=[];
+  state.ingredients.push(ng);
+  var li2=_mobQaIng.lineIdx;
+  _mobCloseQuickAddModal();
+  selectRecipeIng(li2,id);
+  showSnack('Added: '+name);
+}
+function _mobRenderQuickAddModal(){
+  if(!_mobQaIng)return;
+  var el=document.getElementById('_mobQAModal');
+  if(!el){el=document.createElement('div');el.id='_mobQAModal';el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100000;display:flex;align-items:flex-end;justify-content:center';document.body.appendChild(el);}
+  var cats=['Spirits','Liqueurs / Fortified','Mixers / Bubbles','Syrups / Sweeteners','Fruit / Citrus / Juice','Garnish / Produce','Bitters','Other'];
+  var ul=_mobQaIng.unit;
+  var catOpts=cats.map(function(c){return '<option value="'+c+'" '+(_mobQaIng.category===c?'selected':'')+'>'+c+'</option>';}).join('');
+  el.innerHTML='<div style="background:var(--surface);border-radius:16px 16px 0 0;padding:20px 16px 32px;width:100%;max-width:480px;box-shadow:0 -4px 32px rgba(0,0,0,.24)">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
+    +'<div style="font-size:15px;font-weight:700;color:var(--ink)">Quick Add Ingredient</div>'
+    +'<button onclick="_mobCloseQuickAddModal()" style="background:none;border:none;font-size:18px;color:var(--ink3);padding:0 4px;cursor:pointer">&#10005;</button></div>'
+    +'<div style="font-size:12px;color:var(--ink3);margin-bottom:14px">&#8220;'+esc(_mobQaIng.name)+'&#8221; isn\'t in your ingredient list yet.</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">'
+    +'<div style="grid-column:1/-1"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);display:block;margin-bottom:3px">Name *</label>'
+    +'<input id="_mobQAName" class="input" value="'+esc(_mobQaIng.name)+'" oninput="_mobQaIng.name=this.value" style="width:100%"></div>'
+    +'<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);display:block;margin-bottom:3px">Brand</label>'
+    +'<input class="input" value="'+esc(_mobQaIng.brand||'')+'" oninput="_mobQaIng.brand=this.value" placeholder="optional" style="width:100%"></div>'
+    +'<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);display:block;margin-bottom:3px">Category</label>'
+    +'<select class="input" onchange="_mobQaIng.category=this.value" style="width:100%">'+catOpts+'</select></div>'
+    +'<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);display:block;margin-bottom:3px">Recipe Unit</label>'
+    +'<select class="input" onchange="_mobQaIng.unit=this.value;_mobQaIng.packageSize=this.value===\'ml\'?750:25.3605;_mobRenderQuickAddModal()" style="width:100%">'
+    +'<option value="oz" '+(ul==='oz'?'selected':'')+'>oz</option>'
+    +'<option value="ml" '+(ul==='ml'?'selected':'')+'>ml</option></select></div>'
+    +'<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);display:block;margin-bottom:3px">Package Size ('+ul+')</label>'
+    +'<input class="input" type="number" min="0" step="0.01" value="'+_mobQaIng.packageSize+'" oninput="_mobQaIng.packageSize=Number(this.value)" style="width:100%"></div>'
+    +'<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);display:block;margin-bottom:3px">Purchase Cost ($)</label>'
+    +'<input class="input" type="number" min="0" step="0.01" value="'+_mobQaIng.purchaseCost+'" oninput="_mobQaIng.purchaseCost=Number(this.value)" style="width:100%"></div>'
+    +'<div style="grid-column:1/-1"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);display:block;margin-bottom:3px">ABV % (optional)</label>'
+    +'<input class="input" type="number" min="0" max="100" step="0.1" value="'+esc(_mobQaIng.abv||'')+'" oninput="_mobQaIng.abv=this.value" placeholder="e.g. 40" style="width:100%"></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="_mobCloseQuickAddModal()" style="flex:1;padding:11px 0;border-radius:8px;border:1px solid var(--border);background:none;color:var(--ink);font-size:14px;cursor:pointer">Cancel</button>'
+    +'<button onclick="_mobSaveQuickAdd()" style="flex:2;padding:11px 0;border-radius:8px;border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Save &amp; Add to Recipe</button></div></div>';
+  el.style.display='flex';
+  setTimeout(function(){var n=document.getElementById('_mobQAName');if(n){n.focus();n.select();}},50);
+}
+
 function saveCocktailSheet() {
   const idx = state.cocktails.findIndex(x => x.id === cocktailDraft.id);
   if (idx >= 0) state.cocktails[idx] = cocktailDraft;
