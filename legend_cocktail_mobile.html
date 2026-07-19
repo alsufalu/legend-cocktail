@@ -338,7 +338,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">🍸</div>
-      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.53</span></div>
+      <div class="topbar-title">Shaker &amp; Cellar <span id="mobileVersionLabel" style="font-size:10px;font-weight:400;opacity:.6;">v3.54</span></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="cloudStatus">☁ Syncing</span>
@@ -1567,7 +1567,8 @@ function renderRecipes() {
 
 function addCocktail() {
   const id = uid();
-  state.cocktails.push({id, name:'New Cocktail', category:'Signature Cocktail', notes:'', glass:'', served:'', build:'', garnish:'', specialInstructions:'', recipe:[], photo:''});
+  const today = fmtDate(new Date().toISOString().slice(0,10));
+  state.cocktails.push({id, name:'New Cocktail', category:'Signature Cocktail', notes:'', glass:'', served:'', build:'', garnish:'', specialInstructions:'', recipe:[], photo:'', dateCreated:today});
   saveData(); checkNewBadges(); openCocktailSheet(id);
 }
 
@@ -1797,6 +1798,7 @@ function renderCocktailSheet() {
         <div class="combo-wrap"><input id="mobBuildInp" type="text" value="${esc(c.build||'')}" placeholder="Select or type…" autocomplete="off" oninput="cocktailDraft.build=this.value;_mobFilterCombo('mobBuildDrop',this.value)" onfocus="_mobOpenCombo('mobBuildDrop',this)" onblur="_mobCloseCombo('mobBuildDrop','build','mobBuildInp')"><button class="combo-arrow" onmousedown="event.preventDefault();document.getElementById('mobBuildDrop').classList.contains('open')?document.getElementById('mobBuildDrop').classList.remove('open'):_mobOpenCombo('mobBuildDrop',document.getElementById('mobBuildInp'))" tabindex="-1">▾</button><div id="mobBuildDrop" class="combo-drop">${buildOpts2}</div></div>
       </div>
       <div class="field"><label>Garnish</label><input type="text" value="${esc(c.garnish||'')}" oninput="cocktailDraft.garnish=this.value" placeholder="e.g. Lime wheel"/></div>
+      <div class="field"><label>Date Created</label><input type="text" placeholder="MM/DD/YYYY" value="${esc(c.dateCreated||'')}" oninput="dateMaskInput(this);cocktailDraft.dateCreated=this.value"/></div>
       <div class="field"><label>Notes</label><textarea oninput="cocktailDraft.notes=this.value">${esc(c.notes||'')}</textarea></div>
       <div class="field"><label>Special Instructions</label><textarea oninput="cocktailDraft.specialInstructions=this.value">${esc(c.specialInstructions||'')}</textarea></div>
       ${c.savedFromCommunity?`<div style="background:rgba(0,112,242,.07);border:1px solid rgba(0,112,242,.2);border-radius:10px;padding:10px 12px;margin-bottom:2px"><div style="font-size:12px;font-weight:700;color:#0070f2;margin-bottom:2px">↓ Imported from Community</div><div style="font-size:12px;color:var(--ink2)">Shared by <strong>${esc(c.savedFromUser||'a member')}</strong>${c.savedFromDate?' · Saved '+new Date(c.savedFromDate).toLocaleDateString():''}</div></div>`:''}
